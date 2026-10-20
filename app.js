@@ -290,6 +290,7 @@ function render(force) {
   app.innerHTML =
     (focus ? '' : hero(D, r)) +
     (r.admin && isAdmin && !focus ? adminBar() : '') +
+    (!r.admin && user && isAdmin ? '<a class="to-admin" href="#admin">Bạn là BTC · <b>Mở trang chấm điểm ›</b></a>' : '') +
     (['live', 'men', 'mix', 'set'].includes(v) ? tabs(D, r) : '') +
     `<main class="wrap">${!S && loaded && !r.admin ? '<p class="note">BTC chưa mở giải — tỉ số sẽ hiện ở đây khi trận đầu bắt đầu.</p>' : ''}${views[v]()}</main>` +
     (focus ? '' : footer(r));
@@ -333,7 +334,7 @@ function tabs(D, r) {
 function footer(r) {
   return `<footer class="foot">
     <button class="btn ghost" data-act="share">${ICON.share} Chia sẻ link xem tỉ số</button>
-    <p>M&amp;J CUP · Tỉ số do BTC cập nhật trực tiếp</p>
+    <p>M&amp;J CUP · Tỉ số do BTC cập nhật trực tiếp${r.admin ? '' : ' · <a href="#admin">Đăng nhập BTC</a>'}</p>
   </footer>`;
 }
 
