@@ -145,10 +145,10 @@ const isOver = (sa, sb, meta) => {
 };
 
 // ---------- Trạng thái ----------
-let S = null, loaded = false, authReady = false, user = null, isAdmin = false;
+let S = null, loaded = false, authReady = false, isAdmin = false;
 let conn = null; // null = đang kết nối lần đầu
 let lastView = null;
-const STATIC = new Set(['set', 'edit', 'login', 'denied', 'wait', 'init']); // view có form: không vẽ lại khi dữ liệu đổi
+const STATIC = new Set(['set', 'edit', 'login', 'wait', 'init']); // view có form: không vẽ lại khi dữ liệu đổi
 const store = { mode: CFG ? 'server' : 'demo' };
 const app = document.getElementById('app');
 
@@ -198,41 +198,46 @@ async function initSupabase() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refetch(); });
   refetch();
 
-  let authKey = null;
-  sb.auth.onAuthStateChange((_e, session) => {
-    const u = (session && session.user) || null;
-    // Không gọi Supabase trực tiếp trong callback này (thư viện có thể treo), nên đẩy ra ngoài.
-    setTimeout(async () => {
-      const key = u ? u.id : '';
-      if (key === authKey) return; // bỏ qua sự kiện làm mới token định kỳ
-      authKey = key;
-      user = u ? { email: u.email, uid: u.id } : null;
-      isAdmin = false;
-      if (u) { const { data } = await sb.rpc('cup_is_admin'); isAdmin = data === true; }
-      authReady = true;
-      render(true);
-    }, 0);
-  });
+  // BTC nhập mật khẩu một lần; máy chủ kiểm tra lại mật khẩu ở mỗi lần ghi.
+  const PW_KEY = 'mjcup-btc-pw';
+  let pw = null;
+  try { pw = localStorage.getItem(PW_KEY); } catch (e) { /* trình duyệt chặn lưu */ }
+  const forget = () => { pw = null; isAdmin = false; try { localStorage.removeItem(PW_KEY); } catch (e) {} };
+  const check = async candidate => {
+    const { data, error } = await sb.rpc('cup_check', { pw: candidate });
+    if (error) throw error;
+    return data === true;
+  };
+  if (pw) { try { isAdmin = await check(pw); } catch (e) { isAdmin = false; } if (!isAdmin) forget(); }
+  authReady = true;
+  render(true);
 
   store.write = async up => {
     if (S) { applyPatch(S, up); render(false); }
     pending++;
-    const { data, error } = await sb.rpc('cup_patch', { ops: up });
+    const { data, error } = await sb.rpc('cup_patch', { ops: up, pw });
     pending--;
-    if (error) { stash = null; refetch(); throw error; }
+    if (error) {
+      stash = null; refetch();
+      if (/42501|permission/i.test(`${error.code} ${error.message}`)) { forget(); render(true); } // mật khẩu đã bị đổi
+      throw error;
+    }
     minVer = Math.max(minVer, data);
     if (!pending && stash) { const row = stash; stash = null; incoming(row); }
   };
   store.seed = async () => {
-    const { error } = await sb.rpc('cup_init', { doc: makeSeed() });
+    const { error } = await sb.rpc('cup_init', { doc: makeSeed(), pw });
     if (error) throw error;
     await refetch();
   };
-  store.login = async (email, password) => {
-    const { error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+  store.login = async candidate => {
+    if (!(await check(candidate))) return false;
+    pw = candidate; isAdmin = true;
+    try { localStorage.setItem(PW_KEY, pw); } catch (e) {}
+    render(true);
+    return true;
   };
-  store.logout = () => sb.auth.signOut();
+  store.logout = async () => { forget(); };
 }
 
 function initDemo() {
@@ -275,8 +280,7 @@ function render(force) {
   const r = route();
   let v = r.view;
   if (r.admin && !authReady) v = 'wait';
-  else if (r.admin && store.mode === 'server' && !user) v = 'login';
-  else if (r.admin && !isAdmin) v = 'denied';
+  else if (r.admin && !isAdmin) v = 'login';
   else if (!loaded) v = 'loading';
   else if (r.admin && !S) v = 'init';
   if (!force && STATIC.has(v) && v === lastView) return;
@@ -286,7 +290,7 @@ function render(force) {
   const views = {
     live: () => viewLive(D, r.admin), men: () => viewMen(D, r.admin), mix: () => viewMix(D, r.admin),
     set: () => viewSet(D), score: () => viewScore(D, r.match), edit: () => viewEdit(D, r.match),
-    login: viewLogin, denied: viewDenied, init: viewInit,
+    login: viewLogin, init: viewInit,
     wait: () => '<div class="boot">Đang kiểm tra đăng nhập…</div>',
     loading: () => '<div class="boot">Đang tải dữ liệu giải…</div>',
   };
@@ -294,7 +298,7 @@ function render(force) {
   app.innerHTML =
     (focus ? '' : hero(D, r)) +
     (r.admin && isAdmin && !focus ? adminBar() : '') +
-    (!r.admin && user && isAdmin ? '<a class="to-admin" href="#admin">Bạn là BTC · <b>Mở trang chấm điểm ›</b></a>' : '') +
+    (!r.admin && isAdmin && store.mode === 'server' ? '<a class="to-admin" href="#admin">Bạn là BTC · <b>Mở trang chấm điểm ›</b></a>' : '') +
     (['live', 'men', 'mix', 'set'].includes(v) ? tabs(D, r) : '') +
     `<main class="wrap">${!S && loaded && !r.admin ? '<p class="note">BTC chưa mở giải — tỉ số sẽ hiện ở đây khi trận đầu bắt đầu.</p>' : ''}${views[v]()}</main>` +
     (focus ? '' : footer(r));
@@ -321,10 +325,10 @@ function paintConn() {
 }
 
 function adminBar() {
-  const who = store.mode === 'demo' ? 'Chế độ thử' : esc(user && user.email);
+  const who = store.mode === 'demo' ? 'Chế độ thử' : 'Đang chấm điểm';
   return `<div class="adminbar"><span class="ab-tag">BTC</span><span class="ab-who">${who}</span>
     <a href="#live" class="ab-link">Trang người xem</a>
-    ${store.mode === 'server' ? '<button class="ab-link" data-act="logout">Đăng xuất</button>' : ''}</div>`;
+    ${store.mode === 'server' ? '<button class="ab-link" data-act="logout">Thoát BTC</button>' : ''}</div>`;
 }
 
 function tabs(D, r) {
@@ -548,17 +552,12 @@ function viewSet(D) {
 
 function viewLogin() {
   return `<form class="card form narrow" data-form="login">
-    <h3>Đăng nhập BTC</h3>
-    <label>Email<input name="email" type="email" autocomplete="username" required></label>
-    <label>Mật khẩu<input name="pw" type="password" autocomplete="current-password" required></label>
-    <button class="btn primary wide" type="submit">Đăng nhập</button>
+    <h3>Mật khẩu BTC</h3>
+    <p class="fine top">Nhập mật khẩu để chấm điểm. Máy này sẽ nhớ cho lần sau.</p>
+    <label>Mật khẩu<input name="pw" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" required autofocus></label>
+    <button class="btn primary wide" type="submit">Vào trang chấm điểm</button>
     <p class="err" id="lerr"></p>
   </form>`;
-}
-function viewDenied() {
-  return `<section class="card narrow"><h3>Chưa có quyền BTC</h3>
-    <p>Tài khoản <b>${esc(user && user.email)}</b> chưa được cấp quyền nhập điểm. Chạy lệnh cấp quyền BTC với email này trong Supabase (HUONG-DAN.md, bước 4), rồi đăng xuất và đăng nhập lại.</p>
-    <button class="btn ghost wide" data-act="logout">Đăng xuất</button></section>`;
 }
 function viewInit() {
   return `<section class="card narrow"><h3>Khởi tạo giải</h3>
@@ -645,8 +644,11 @@ async function submit(form) {
   if (kind === 'login') {
     const err = form.querySelector('#lerr');
     err.textContent = '';
-    try { await store.login(f.get('email').trim(), f.get('pw')); }
-    catch (e) { err.textContent = /invalid|credential/i.test(`${e.code || ''} ${e.message || ''}`) ? 'Sai email hoặc mật khẩu.' : 'Không đăng nhập được: ' + (e.code || e.message); }
+    const btn = form.querySelector('button');
+    btn.disabled = true;
+    try { if (!(await store.login(f.get('pw')))) err.textContent = 'Sai mật khẩu.'; }
+    catch (e) { err.textContent = 'Không kiểm tra được mật khẩu: ' + (e.message || e); }
+    btn.disabled = false;
     return;
   }
   if (kind === 'settings') {

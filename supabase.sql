@@ -9,20 +9,28 @@ create table if not exists public.cup (
   updated_at timestamptz not null default now()
 );
 
--- Tài khoản được nhập điểm (BTC).
-create table if not exists public.admins (
-  user_id uuid primary key references auth.users (id) on delete cascade
+-- Mật khẩu BTC (chỉ lưu bản mã hoá bcrypt). Đặt bằng lệnh ở HUONG-DAN.md, bước 3.
+create extension if not exists pgcrypto with schema extensions;
+create table if not exists public.cup_secret (
+  id int primary key default 1 check (id = 1),
+  pw_hash text not null
 );
 
 alter table public.cup enable row level security;
-alter table public.admins enable row level security;
+alter table public.cup_secret enable row level security;
 
 -- Ai cũng xem được tỉ số. Không có quyền ghi trực tiếp: mọi thay đổi đi qua các hàm bên dưới.
 drop policy if exists "cup_public_read" on public.cup;
 create policy "cup_public_read" on public.cup for select to anon, authenticated using (true);
 grant select on public.cup to anon, authenticated;
 revoke insert, update, delete on public.cup from anon, authenticated;
-revoke all on public.admins from anon, authenticated;
+revoke all on public.cup_secret from anon, authenticated;
+
+-- Bỏ cách đăng nhập bằng email cũ (nếu đã từng chạy bản trước).
+drop function if exists public.cup_patch(jsonb);
+drop function if exists public.cup_init(jsonb);
+drop function if exists public.cup_is_admin();
+drop table if exists public.admins;
 
 -- Bật cập nhật trực tiếp (Realtime) cho bảng cup.
 do $$ begin
@@ -30,17 +38,27 @@ do $$ begin
 exception when duplicate_object then null;
 end $$;
 
-create or replace function public.cup_is_admin()
-returns boolean language sql stable security definer set search_path = public
-as $$ select exists (select 1 from public.admins where user_id = auth.uid()) $$;
+-- Đúng mật khẩu BTC? Sai thì chờ 0,7 giây để chống dò mật khẩu.
+create or replace function public.cup_check(pw text)
+returns boolean language plpgsql security definer set search_path = public, extensions
+as $$
+declare h text;
+begin
+  select pw_hash into h from public.cup_secret where id = 1;
+  if h is not null and pw is not null and crypt(pw, h) = h then
+    return true;
+  end if;
+  perform pg_sleep(0.7);
+  return false;
+end $$;
 
--- Tạo (hoặc ghi đè) dữ liệu giải. Chỉ BTC.
-create or replace function public.cup_init(doc jsonb)
+-- Tạo (hoặc ghi đè) dữ liệu giải. Cần mật khẩu BTC.
+create or replace function public.cup_init(doc jsonb, pw text)
 returns bigint language plpgsql security definer set search_path = public
 as $$
 declare nv bigint;
 begin
-  if not public.cup_is_admin() then
+  if not public.cup_check(pw) then
     raise exception 'permission denied' using errcode = '42501';
   end if;
   insert into public.cup (id, data) values ('mj', doc)
@@ -54,13 +72,13 @@ end $$;
 --   {"__now": 1} giờ máy chủ, tính bằng mili giây
 --   null         xoá khoá
 -- Khoá trong lệnh khoá dòng (for update) nên các lần ghi đồng thời xếp hàng, không mất điểm.
-create or replace function public.cup_patch(ops jsonb)
+create or replace function public.cup_patch(ops jsonb, pw text)
 returns bigint language plpgsql security definer set search_path = public
 as $$
 declare
   d jsonb; k text; v jsonb; p text[]; i int; nv bigint;
 begin
-  if not public.cup_is_admin() then
+  if not public.cup_check(pw) then
     raise exception 'permission denied' using errcode = '42501';
   end if;
   select data into d from public.cup where id = 'mj' for update;
@@ -90,8 +108,7 @@ begin
   return nv;
 end $$;
 
-revoke all on function public.cup_init(jsonb) from public, anon;
-revoke all on function public.cup_patch(jsonb) from public, anon;
-grant execute on function public.cup_init(jsonb) to authenticated;
-grant execute on function public.cup_patch(jsonb) to authenticated;
-grant execute on function public.cup_is_admin() to anon, authenticated;
+-- Ai cũng gọi được, nhưng không có mật khẩu đúng thì bị từ chối.
+grant execute on function public.cup_check(text) to anon, authenticated;
+grant execute on function public.cup_init(jsonb, text) to anon, authenticated;
+grant execute on function public.cup_patch(jsonb, text) to anon, authenticated;
