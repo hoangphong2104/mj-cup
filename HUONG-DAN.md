@@ -5,31 +5,37 @@
 | Người chơi, khách xem | `https://hoangphong2104.github.io/mj-cup/` |
 | BTC nhập điểm (HanhVMN, MC) | `https://hoangphong2104.github.io/mj-cup/#admin` |
 
-Chưa cấu hình Firebase thì trang chạy **chế độ thử**: dữ liệu chỉ nằm trên trình duyệt đang mở, không đồng bộ sang máy khác. Để điện thoại người chơi thấy tỉ số trực tiếp, cần làm một lần các bước dưới đây (khoảng 10 phút, miễn phí).
+Chưa điền Supabase vào `config.js` thì trang chạy **chế độ thử**: dữ liệu chỉ nằm trên trình duyệt đang mở, không đồng bộ sang máy khác. Để điện thoại người chơi thấy tỉ số trực tiếp, cần làm một lần các bước dưới đây (khoảng 10 phút, gói miễn phí là đủ).
 
-## Cài Firebase (một lần)
+## Cài Supabase (một lần)
 
-1. Vào <https://console.firebase.google.com> → **Add project** → đặt tên `mj-cup` → tắt Google Analytics → Create.
-2. **Build → Realtime Database → Create database** → vùng **Singapore (asia-southeast1)** → chọn **Start in locked mode**.
-   Sang tab **Rules**, xoá hết, dán nội dung file [`database.rules.json`](database.rules.json) → **Publish**.
-   Luật này cho mọi người *xem*, chỉ tài khoản BTC được *ghi*.
-3. **Build → Authentication → Get started → Email/Password → Enable → Save.**
-   Tab **Users → Add user**: tạo tài khoản cho HanhVMN và cho MC (email + mật khẩu tự đặt).
-   Sao chép cột **User UID** của từng người.
-4. Cấp quyền BTC: quay lại **Realtime Database → tab Data**, bấm dấu **+** cạnh gốc:
-   - Key: `admins` → bấm **+** bên trong nó
-   - Key: *UID vừa sao chép*, Value: `true`
-   Làm lại cho UID thứ hai. Giá trị phải là `true` (kiểu boolean), không có dấu ngoặc kép.
-5. **Project settings (bánh răng) → General → Your apps → biểu tượng `</>`** → đặt tên `mj-cup` → Register.
-   Sao chép khối `firebaseConfig` và dán vào [`config.js`](config.js), thay dòng `window.MJ_FIREBASE_CONFIG = null;`.
-   Kiểm tra trong đó **có `databaseURL`**. Nếu thiếu, lấy URL ở đầu trang Realtime Database (dạng `https://mj-cup-default-rtdb.asia-southeast1.firebasedatabase.app`).
-6. **Authentication → Settings → Authorized domains → Add domain**: `hoangphong2104.github.io`.
+1. Vào <https://supabase.com/dashboard> → **New project** → tên `mj-cup`, vùng **Southeast Asia (Singapore)**, đặt mật khẩu database (lưu lại, ít khi dùng) → Create.
+   Nên tạo dự án riêng. Nếu dùng chung dự án có sẵn, kiểm tra trước là chưa có bảng nào tên `cup` hoặc `admins`.
+2. **SQL Editor → New query** → dán toàn bộ file [`supabase.sql`](supabase.sql) → **Run**.
+   File này tạo bảng lưu giải, bật cập nhật trực tiếp, và đặt quyền: ai cũng *xem* được, chỉ BTC *ghi* được.
+3. **Authentication → Users → Add user → Create new user**: tạo tài khoản cho HanhVMN và cho MC (email + mật khẩu tự đặt), **tích “Auto Confirm User”**.
+4. Cấp quyền BTC: **SQL Editor → New query**, sửa 2 email cho đúng rồi **Run**:
+   ```sql
+   insert into public.admins (user_id)
+   select id from auth.users where email in ('hanh@example.com', 'mc@example.com')
+   on conflict do nothing;
+   ```
+   Thêm người sau này cũng chạy lại lệnh này với email mới.
+5. **Project Settings → API Keys** (hoặc **Data API**): sao chép **Project URL** và khoá **anon public** (hoặc **publishable**), dán vào [`config.js`](config.js):
+   ```js
+   window.MJ_SUPABASE = {
+     url: 'https://abcdxyz.supabase.co',
+     anonKey: 'eyJhbGciOi...',
+   };
+   ```
+   Khoá này được phép công khai: quyền ghi do bước 2 và 4 kiểm soát. **Không** dán khoá `service_role` / `secret`.
+6. Nên làm: **Authentication → Sign In / Providers** → tắt **Allow new users to sign up**, để người lạ không tự tạo tài khoản. Họ có tạo được thì cũng không ghi được, nhưng tắt cho gọn.
 7. Đưa trang lên mạng bằng GitHub Pages: tạo repo `mj-cup` trên GitHub, đẩy toàn bộ thư mục này lên nhánh `main` (giữ file `.nojekyll`),
    rồi vào **Settings → Pages → Deploy from a branch → `main` / `(root)` → Save**. Chờ 1–2 phút.
-   Đặt repo ở tài khoản khác thì đổi `hoangphong2104` trong các link ở đây (và ở bước 6) cho đúng.
+   Đặt repo ở tài khoản khác thì đổi `hoangphong2104` trong các link ở đây cho đúng.
 8. Mở link BTC → đăng nhập → bấm **Khởi tạo M&J CUP**. Xong, gửi link người xem vào nhóm.
 
-`apiKey` trong `config.js` được phép công khai. Quyền ghi do luật ở bước 2 kiểm soát, không phải do khoá này.
+> **Lưu ý gói miễn phí:** Supabase tạm dừng dự án sau 7 ngày không ai dùng. **Hôm trước ngày thi đấu**, mở dashboard xem dự án có đang **Paused** không; nếu có, bấm **Restore** (mất vài phút).
 
 ## Ngày thi đấu
 

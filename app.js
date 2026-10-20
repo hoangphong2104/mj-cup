@@ -1,8 +1,8 @@
 /* M&J CUP — tính điểm pickleball trực tiếp.
    Người xem: /mj-cup/        BTC chấm điểm: /mj-cup/#admin */
 
-const CFG = window.MJ_FIREBASE_CONFIG || null;
-const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
+const CFG = window.MJ_SUPABASE && window.MJ_SUPABASE.url ? window.MJ_SUPABASE : null;
+const SB_LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 const INC = n => ({ __inc: n });
 const NOW = { __now: 1 };
 const pad = n => String(n).padStart(2, '0');
@@ -145,36 +145,90 @@ let S = null, loaded = false, authReady = false, user = null, isAdmin = false;
 let conn = null; // null = đang kết nối lần đầu
 let lastView = null;
 const STATIC = new Set(['set', 'edit', 'login', 'denied', 'wait', 'init']); // view có form: không vẽ lại khi dữ liệu đổi
-const store = { mode: CFG ? 'firebase' : 'demo' };
+const store = { mode: CFG ? 'server' : 'demo' };
 const app = document.getElementById('app');
 
 function onData(cup) { S = cup; loaded = true; render(false); }
 
-async function initFirebase() {
-  const [A, D, U] = await Promise.all([
-    import(FB + 'firebase-app.js'), import(FB + 'firebase-database.js'), import(FB + 'firebase-auth.js'),
-  ]);
-  const fapp = A.initializeApp(CFG);
-  const db = D.getDatabase(fapp), auth = U.getAuth(fapp);
-  D.onValue(D.ref(db, 'cup'), snap => onData(snap.val()), err => toast('Không đọc được dữ liệu: ' + err.message));
-  D.onValue(D.ref(db, '.info/connected'), snap => {
-    if (snap.val()) conn = true; else if (conn !== null) conn = false;
-    paintConn();
-  });
-  U.onAuthStateChanged(auth, async u => {
-    user = u; isAdmin = false;
-    if (u) { try { isAdmin = (await D.get(D.ref(db, 'admins/' + u.uid))).val() === true; } catch (e) { /* không có quyền đọc */ } }
-    authReady = true;
-    render(true);
-  });
-  store.write = up => {
-    const out = {};
-    for (const [k, v] of Object.entries(up)) out[k] = v && v.__inc !== undefined ? D.increment(v.__inc) : v === NOW ? D.serverTimestamp() : v;
-    return D.update(D.ref(db, 'cup'), out);
+// Áp bản vá {'matches/N01/sa': INC(1), ...} vào dữ liệu — cùng logic với hàm cup_patch trong supabase.sql.
+function applyPatch(data, up) {
+  for (const [k, v] of Object.entries(up)) {
+    const parts = k.split('/'), last = parts.pop();
+    let o = data;
+    for (const p of parts) o = o[p] && typeof o[p] === 'object' ? o[p] : (o[p] = {});
+    const val = v && v.__inc !== undefined ? (o[last] || 0) + v.__inc : v && v.__now ? Date.now() : v;
+    if (val === null) delete o[last]; else o[last] = val;
+  }
+}
+
+async function initSupabase() {
+  const { createClient } = await import(SB_LIB);
+  const sb = createClient(CFG.url, CFG.anonKey);
+  // ver tăng 1 sau mỗi lần ghi. Trong lúc máy này đang ghi, giữ điểm hiện trên màn hình
+  // và bỏ qua bản cũ từ máy chủ để số không bị nhảy lùi khi bấm nhanh.
+  let ver = 0, minVer = 0, pending = 0, stash = null;
+  const incoming = row => {
+    if (pending) { if (!stash || row.ver > stash.ver) stash = row; return; }
+    if (row.ver < Math.max(ver, minVer)) return;
+    ver = row.ver;
+    onData(row.data);
   };
-  store.seed = () => D.set(D.ref(db, 'cup'), makeSeed());
-  store.login = (email, pw) => U.signInWithEmailAndPassword(auth, email, pw);
-  store.logout = () => U.signOut(auth);
+  const refetch = async () => {
+    const { data, error } = await sb.from('cup').select('data, ver').eq('id', 'mj').maybeSingle();
+    if (error) return toast('Không đọc được dữ liệu: ' + error.message);
+    if (pending) return;
+    if (!data) { ver = 0; return onData(null); }
+    if (data.ver >= ver) { ver = data.ver; onData(data.data); }
+  };
+
+  sb.channel('cup-mj')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'cup', filter: 'id=eq.mj' }, p => {
+      if (p.eventType === 'DELETE') { ver = 0; onData(null); } else incoming(p.new);
+    })
+    .subscribe(status => {
+      if (status === 'SUBSCRIBED') { conn = true; refetch(); } // vào lại sau khi rớt mạng: lấy bản mới nhất
+      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') conn = false;
+      paintConn();
+    });
+  // Điện thoại tắt màn hình thường cắt kết nối — mở lại thì tải bản mới nhất ngay.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refetch(); });
+  refetch();
+
+  let authKey = null;
+  sb.auth.onAuthStateChange((_e, session) => {
+    const u = (session && session.user) || null;
+    // Không gọi Supabase trực tiếp trong callback này (thư viện có thể treo), nên đẩy ra ngoài.
+    setTimeout(async () => {
+      const key = u ? u.id : '';
+      if (key === authKey) return; // bỏ qua sự kiện làm mới token định kỳ
+      authKey = key;
+      user = u ? { email: u.email, uid: u.id } : null;
+      isAdmin = false;
+      if (u) { const { data } = await sb.rpc('cup_is_admin'); isAdmin = data === true; }
+      authReady = true;
+      render(true);
+    }, 0);
+  });
+
+  store.write = async up => {
+    if (S) { applyPatch(S, up); render(false); }
+    pending++;
+    const { data, error } = await sb.rpc('cup_patch', { ops: up });
+    pending--;
+    if (error) { stash = null; refetch(); throw error; }
+    minVer = Math.max(minVer, data);
+    if (!pending && stash) { const row = stash; stash = null; incoming(row); }
+  };
+  store.seed = async () => {
+    const { error } = await sb.rpc('cup_init', { doc: makeSeed() });
+    if (error) throw error;
+    await refetch();
+  };
+  store.login = async (email, password) => {
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+  };
+  store.logout = () => sb.auth.signOut();
 }
 
 function initDemo() {
@@ -185,16 +239,7 @@ function initDemo() {
   let data = load() || makeSeed();
   // Đồng bộ giữa các tab trên cùng máy để thử "BTC nhập — người xem thấy".
   window.addEventListener('storage', e => { if (e.key === KEY) { data = load() || makeSeed(); emit(); } });
-  store.write = async up => {
-    for (const [k, v] of Object.entries(up)) {
-      const parts = k.split('/'), last = parts.pop();
-      let o = data;
-      for (const p of parts) o = o[p] ||= {};
-      const val = v && v.__inc !== undefined ? (o[last] || 0) + v.__inc : v === NOW ? Date.now() : v;
-      if (val === null) delete o[last]; else o[last] = val;
-    }
-    save(); emit();
-  };
+  store.write = async up => { applyPatch(data, up); save(); emit(); };
   store.seed = async () => { data = makeSeed(); save(); emit(); };
   store.logout = async () => {};
   authReady = true; isAdmin = true; conn = true;
@@ -204,7 +249,8 @@ function initDemo() {
 async function write(up) {
   try { await store.write(up); }
   catch (e) {
-    toast(/permission/i.test((e && (e.code || e.message)) || '') ? 'Không có quyền ghi — kiểm tra tài khoản BTC' : 'Lỗi lưu: ' + (e.message || e));
+    const why = e ? `${e.code || ''} ${e.message || e}` : '';
+    toast(/permission|42501/i.test(why) ? 'Không có quyền ghi — kiểm tra tài khoản BTC' : 'Lỗi lưu: ' + ((e && e.message) || e));
   }
 }
 
@@ -225,7 +271,7 @@ function render(force) {
   const r = route();
   let v = r.view;
   if (r.admin && !authReady) v = 'wait';
-  else if (r.admin && store.mode === 'firebase' && !user) v = 'login';
+  else if (r.admin && store.mode === 'server' && !user) v = 'login';
   else if (r.admin && !isAdmin) v = 'denied';
   else if (!loaded) v = 'loading';
   else if (r.admin && !S) v = 'init';
@@ -265,7 +311,7 @@ function hero(D, r) {
 function paintConn() {
   const el = document.getElementById('conn');
   if (!el) return;
-  if (store.mode === 'demo') { el.className = 'conn demo'; el.textContent = 'Chế độ thử · chưa nối Firebase'; return; }
+  if (store.mode === 'demo') { el.className = 'conn demo'; el.textContent = 'Chế độ thử · chưa nối Supabase'; return; }
   el.className = 'conn ' + (conn === false ? 'off' : conn ? 'on' : '');
   el.innerHTML = conn === false ? '<i></i>Mất kết nối — đang thử lại' : conn ? '<i></i>Cập nhật trực tiếp' : '<i></i>Đang kết nối…';
 }
@@ -274,7 +320,7 @@ function adminBar() {
   const who = store.mode === 'demo' ? 'Chế độ thử' : esc(user && user.email);
   return `<div class="adminbar"><span class="ab-tag">BTC</span><span class="ab-who">${who}</span>
     <a href="#live" class="ab-link">Trang người xem</a>
-    ${store.mode === 'firebase' ? '<button class="ab-link" data-act="logout">Đăng xuất</button>' : ''}</div>`;
+    ${store.mode === 'server' ? '<button class="ab-link" data-act="logout">Đăng xuất</button>' : ''}</div>`;
 }
 
 function tabs(D, r) {
@@ -489,8 +535,7 @@ function viewLogin() {
 }
 function viewDenied() {
   return `<section class="card narrow"><h3>Chưa có quyền BTC</h3>
-    <p>Tài khoản <b>${esc(user && user.email)}</b> chưa được cấp quyền nhập điểm. Thêm UID dưới đây vào mục <code>admins</code> trong Firebase (xem HUONG-DAN.md):</p>
-    <p class="link">${esc(user && user.uid)}</p>
+    <p>Tài khoản <b>${esc(user && user.email)}</b> chưa được cấp quyền nhập điểm. Chạy lệnh cấp quyền BTC với email này trong Supabase (HUONG-DAN.md, bước 4), rồi đăng xuất và đăng nhập lại.</p>
     <button class="btn ghost wide" data-act="logout">Đăng xuất</button></section>`;
 }
 function viewInit() {
@@ -572,7 +617,7 @@ async function submit(form) {
     const err = form.querySelector('#lerr');
     err.textContent = '';
     try { await store.login(f.get('email').trim(), f.get('pw')); }
-    catch (e) { err.textContent = /invalid|wrong|not-found|credential/.test(e.code || '') ? 'Sai email hoặc mật khẩu.' : 'Không đăng nhập được: ' + (e.code || e.message); }
+    catch (e) { err.textContent = /invalid|credential/i.test(`${e.code || ''} ${e.message || ''}`) ? 'Sai email hoặc mật khẩu.' : 'Không đăng nhập được: ' + (e.code || e.message); }
     return;
   }
   if (kind === 'settings') {
@@ -618,6 +663,6 @@ document.addEventListener('submit', e => {
 window.addEventListener('hashchange', () => { render(true); window.scrollTo(0, 0); });
 
 render(true);
-(store.mode === 'firebase' ? initFirebase() : Promise.resolve(initDemo())).catch(e => {
+(store.mode === 'server' ? initSupabase() : Promise.resolve(initDemo())).catch(e => {
   app.innerHTML = `<div class="boot">Không kết nối được máy chủ.<br><small>${esc(e.message || e)}</small></div>`;
 });
