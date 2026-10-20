@@ -300,7 +300,7 @@ function render(force) {
 function hero(D, r) {
   const m = D.meta;
   return `<header class="hero">
-    <div class="sponsor"><span>★ Nhà tài trợ vàng ★</span><b>Anh Việt Anh Cisco &amp; Chị Mai Loan</b></div>
+    <div class="sponsor"><span class="sp-tag">★ Nhà tài trợ vàng ★</span><b><i class="medal"></i>Anh Việt Anh Cisco <em>&amp;</em> Chị Mai Loan<i class="medal"></i></b></div>
     <h1 class="logo">M&amp;J CUP</h1>
     <p class="sub">Giải pickleball kỷ niệm một năm ngày cưới <b>Mike &amp; Go Han</b></p>
     <div class="rule"><span class="rule-tag">Luật chung</span><span>Đánh chạm <b>${m.target}</b> trước là thắng${m.winBy > 1 ? ` · cách ${m.winBy} điểm` : ''}</span></div>
@@ -362,7 +362,7 @@ function card(D, id, admin, opt = {}) {
   };
   const tap = admin && ready;
   const tag = tap ? `a href="#admin/m/${id}"` : 'div';
-  return `<${tag} class="mc st-${m.st}${opt.big ? ' big' : ''}${tap ? ' tap' : ''}">
+  return `<${tag} class="mc st-${m.st}${opt.big ? ' big' : ''}${id === 'F' ? ' final' : ''}${tap ? ' tap' : ''}">
     <div class="mc-head"><span class="mc-label">${esc(opt.full ? fullLabel(id) : DEF[id].label)}</span>${badge(m, ready)}</div>
     <div class="mc-row${cls('a')}">${teamCell(D, s.a, s.la)}<span class="sc">${pend ? '–' : m.sa}</span></div>
     <div class="mc-row${cls('b')}">${teamCell(D, s.b, s.lb)}<span class="sc">${pend ? '–' : m.sb}</span></div>
@@ -374,10 +374,10 @@ const evHead = (pill, cls, title, meta) =>
   `<div class="ev-head"><span class="pill ${cls}">${pill}</span><span class="ev-title">${title}</span><span class="ev-meta">${meta}</span></div>`;
 const sub = (t, cls = '') => `<h3 class="sub-h"><span class="pill sm ${cls}">${t}</span></h3>`;
 
-function champ(D, title, id) {
-  if (!id) return '';
-  return `<div class="champ"><div class="champ-ic">${ICON.trophy}</div>
-    <div><div class="champ-t">${title}</div><div class="champ-n">${esc(D.name(id))}</div></div></div>`;
+function champ(D, title, id, placeholder) {
+  if (!id && !placeholder) return '';
+  return `<div class="champ${id ? '' : ' wait'}"><div class="champ-ic">${ICON.trophy}</div>
+    <div><div class="champ-t">${title}</div><div class="champ-n">${id ? esc(D.name(id)) : 'Chờ chung kết'}</div></div></div>`;
 }
 
 const tieBtn = (admin, r, list) =>
@@ -408,9 +408,9 @@ function viewMen(D, admin) {
     ${D.menDone ? champ(D, 'Vô địch Đôi nam', D.men[0].id) : ''}
     <section class="sec"><h2 class="sec-h">Bảng xếp hạng${D.menDone ? '' : ' <small>tạm tính</small>'}</h2>
     <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>#</th><th class="l">Cặp đấu</th><th>Trận</th><th>Thắng</th><th>HS</th></tr></thead>
+      <thead><tr><th>#</th><th class="l">Cặp đấu</th><th>Trận</th><th class="hot">Thắng</th><th class="hot">HS</th></tr></thead>
       <tbody>${D.men.map(r => `<tr class="${D.menDone && r.rank === 1 ? 'top' : ''}">
-        <td class="rk">${r.p || D.menDone ? r.rank : '–'}${r.tie ? '<sup>=</sup>' : ''}</td>
+        <td class="rk"><span class="num">${r.p || D.menDone ? r.rank : '–'}</span>${r.tie ? '<sup>=</sup>' : ''}</td>
         <td class="l"><div class="cell">${teamCell(D, r.id)}${tieBtn(admin, r, 'men')}</div></td>
         <td>${r.p}</td><td class="b">${r.w}</td><td class="${r.diff > 0 ? 'pos' : r.diff < 0 ? 'neg' : ''}">${signed(r.diff)}</td></tr>`).join('')}</tbody>
     </table></div>
@@ -425,10 +425,10 @@ function viewMix(D, admin) {
   const rowsHtml = [...D.mixRank, ...D.mixPending].map(r => {
     const q = D.r1Done ? (r.rank <= 8 ? 'in' : 'out') : '';
     return `<tr class="${q}">
-      <td class="rk">${r.fin ? r.rank : '–'}${r.tie ? '<sup>=</sup>' : ''}</td>
+      <td class="rk"><span class="num">${r.fin ? r.rank : '–'}</span>${r.tie ? '<sup>=</sup>' : ''}</td>
       <td class="l"><div class="cell">${teamCell(D, r.id)}${tieBtn(admin, r, 'mix')}</div></td>
       <td>${r.fin ? (r.win ? '<span class="res w">Thắng</span>' : '<span class="res l">Thua</span>') : '—'}</td>
-      <td>${r.fin ? `${r.f}–${r.a}` : '—'}</td>
+      <td class="g">${r.fin ? `${r.f}–${r.a}` : '—'}</td>
       <td class="${r.diff > 0 && r.fin ? 'pos' : r.diff < 0 && r.fin ? 'neg' : ''}">${r.fin ? signed(r.diff) : '—'}</td></tr>`;
   }).join('');
   return `${evHead('Đôi nam nữ', 'lime', 'Vòng 1 → Loại trực tiếp', '10 cặp')}
@@ -436,13 +436,13 @@ function viewMix(D, admin) {
     <section class="sec">${sub('Vòng 1', 'navy')}<p class="fine top">5 cặp thắng + 3 cặp thua có hiệu số tốt nhất vào Vòng 8 đội.</p>${cards(D, R1_IDS, admin)}</section>
     <section class="sec"><h2 class="sec-h">Xếp hạng Vòng 1${D.r1Done ? '' : ' <small>tạm tính</small>'}</h2>
     <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>#</th><th class="l">Cặp đấu</th><th>KQ</th><th>Tỉ số</th><th>HS</th></tr></thead>
+      <thead><tr><th>#</th><th class="l">Cặp đấu</th><th>KQ</th><th class="green">Tỉ số</th><th>HS</th></tr></thead>
       <tbody>${rowsHtml}</tbody></table></div>
     <p class="fine">Cặp thắng xếp hạng 1–5, cặp thua xếp hạng 6–10; cùng nhóm thì xét hiệu số.${D.r1Done ? ' Hạng 1–8 vào Vòng 8 đội.' : ''}${ties ? ' <b>=</b> bằng hiệu số: BTC quyết định thứ tự.' : ''}</p>
     </section>
     <section class="sec">${sub('Vòng 8 đội', 'navy')}${cards(D, QF_IDS, admin)}</section>
     <section class="sec">${sub('Bán kết', 'navy')}${cards(D, SF_IDS, admin)}</section>
-    <section class="sec">${sub('Chung kết', 'lime')}${cards(D, ['F'], admin, { big: true })}</section>`;
+    <section class="sec">${sub('Chung kết', 'yellow')}${cards(D, ['F'], admin, { big: true })}${champ(D, 'Vô địch', D.winner('F'), true)}</section>`;
 }
 
 // ---------- BTC: chấm điểm 1 trận ----------
