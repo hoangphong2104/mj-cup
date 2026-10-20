@@ -300,7 +300,6 @@ function render(force) {
 function hero(D, r) {
   const m = D.meta;
   return `<header class="hero">
-    <div class="sponsor"><span class="sp-tag">★ Nhà tài trợ vàng ★</span><b><i class="medal"></i>Anh Việt Anh Cisco <em>&amp;</em> Chị Mai Loan<i class="medal"></i></b></div>
     <h1 class="logo">M&amp;J CUP</h1>
     <p class="sub">Giải pickleball kỷ niệm một năm ngày cưới <b>Mike &amp; Go Han</b></p>
     <div class="rule"><span class="rule-tag">Luật chung</span><span>Đánh chạm <b>${m.target}</b> trước là thắng${m.winBy > 1 ? ` · cách ${m.winBy} điểm` : ''}</span></div>

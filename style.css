@@ -44,26 +44,8 @@ code { font-size: .9em; color: var(--hot); }
   text-align: center; padding: 22px 16px 18px; max-width: 560px; margin: 0 auto;
   background: var(--sky); box-shadow: 0 0 0 100vmax var(--sky); clip-path: inset(0 -100vmax);
 }
-.sponsor { display: inline-flex; flex-direction: column; align-items: center; }
-.sp-tag {
-  position: relative; z-index: 1; margin-bottom: -9px;
-  padding: 3px 12px; border-radius: 6px;
-  background: var(--navy); color: var(--yellow);
-  font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
-}
-.sponsor b {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 12px 14px 7px; border-radius: 10px;
-  background: var(--yellow-soft); border: 2px solid var(--navy);
-  font-size: 13px; font-weight: 800; color: var(--navy);
-}
-.sponsor em { font-style: normal; color: var(--hot); }
-.medal {
-  flex: none; width: 14px; height: 14px; border-radius: 50%;
-  background: var(--yellow); border: 2px solid var(--navy);
-}
 .logo {
-  margin: 12px 0 0;
+  margin: 4px 0 0;
   font: 800 clamp(58px, 19vw, 84px)/1 var(--display);
   letter-spacing: .02em;
   color: var(--pink);
