@@ -135,6 +135,10 @@ function derive(S) {
   return { M, T, meta, st, name, sides, winner, men, menDone, mixRank, mixPending, r1Done };
 }
 
+// Giao bóng đánh đôi: đầu trận bên giao trước chỉ có người số 2 (gọi điểm "0–0–2").
+// Chỉ để BTC theo dõi — chấm điểm không phụ thuộc vào lượt giao.
+const serve = m => ({ srv: m.srv || 'a', sn: m.sn || 2 });
+
 const isOver = (sa, sb, meta) => {
   const hi = Math.max(sa, sb), lo = Math.min(sa, sb);
   return hi >= meta.target && hi - lo >= meta.winBy;
@@ -362,10 +366,11 @@ function card(D, id, admin, opt = {}) {
   };
   const tap = admin && ready;
   const tag = tap ? `a href="#admin/m/${id}"` : 'div';
+  const srvTag = side => (m.st === 'live' && m.srv === side ? `<span class="srv-tag" title="Đang giao bóng"><i class="ball"></i>giao${m.sn ? ' ' + m.sn : ''}</span>` : '');
   return `<${tag} class="mc st-${m.st}${opt.big ? ' big' : ''}${id === 'F' ? ' final' : ''}${tap ? ' tap' : ''}">
     <div class="mc-head"><span class="mc-label">${esc(opt.full ? fullLabel(id) : DEF[id].label)}</span>${badge(m, ready)}</div>
-    <div class="mc-row${cls('a')}">${teamCell(D, s.a, s.la)}<span class="sc">${pend ? '–' : m.sa}</span></div>
-    <div class="mc-row${cls('b')}">${teamCell(D, s.b, s.lb)}<span class="sc">${pend ? '–' : m.sb}</span></div>
+    <div class="mc-row${cls('a')}">${teamCell(D, s.a, s.la)}${srvTag('a')}<span class="sc">${pend ? '–' : m.sa}</span></div>
+    <div class="mc-row${cls('b')}">${teamCell(D, s.b, s.lb)}${srvTag('b')}<span class="sc">${pend ? '–' : m.sb}</span></div>
   </${tap ? 'a' : 'div'}>`;
 }
 const cards = (D, ids, admin, opt) => `<div class="cards">${ids.map(id => card(D, id, admin, opt)).join('')}</div>`;
@@ -452,10 +457,12 @@ function viewScore(D, id) {
   const back = `<div class="sc-top"><a href="#admin" class="back">‹ Danh sách trận</a><span class="conn" id="conn"></span></div>`;
   if (!s.a || !s.b) return back + `<h2 class="sc-title">${esc(fullLabel(id))}</h2><p class="empty">Trận này chưa xác định đủ 2 cặp.</p>`;
   const fin = m.st === 'done', over = isOver(m.sa, m.sb, meta);
+  const { srv, sn } = serve(m);
   const panel = side => {
     const v = m['s' + side], o = m['s' + (side === 'a' ? 'b' : 'a')];
     return `<div class="pn pn-${side}${v > o ? ' lead' : ''}${fin ? (v > o ? ' win' : ' lose') : ''}">
       <button class="pn-hit" data-act="pt" data-side="${side}" ${fin || over ? 'disabled' : ''}>
+        <span class="pn-srv${!fin && srv === side ? '' : ' off'}"><i class="ball"></i>Giao bóng · người ${sn}</span>
         <span class="pn-name">${pair(D.name(s[side]))}</span>
         <span class="pn-score">${v}</span>
         <span class="pn-hint">${fin ? (v > o ? 'Thắng' : '') : over ? '' : 'Chạm để +1'}</span>
@@ -465,10 +472,25 @@ function viewScore(D, id) {
   };
   const courts = Array.from({ length: meta.courts }, (_, i) => i + 1);
   const winner = m.sa > m.sb ? s.a : s.b;
+  const call = srv === 'a' ? `${m.sa} – ${m.sb} – ${sn}` : `${m.sb} – ${m.sa} – ${sn}`;
+  const srvBar = fin ? '' : `<div class="srv-bar">
+      <div class="srv-row">
+        <div class="srv-call"><span>Gọi điểm</span><b>${call}</b></div>
+        <button class="btn srv-out" data-act="sideout">Mất giao<small>${sn === 1 ? '→ người 2' : '→ đổi bên giao'}</small></button>
+      </div>
+      <div class="srv-set">
+        <div class="grp"><span>Bên giao</span>
+          <button class="chip${srv === 'a' ? ' on' : ''}" data-act="srv" data-side="a">▲ Trên</button>
+          <button class="chip${srv === 'b' ? ' on' : ''}" data-act="srv" data-side="b">▼ Dưới</button></div>
+        <div class="grp"><span>Người</span>
+          <button class="chip${sn === 1 ? ' on' : ''}" data-act="sn" data-n="1">1</button>
+          <button class="chip${sn === 2 ? ' on' : ''}" data-act="sn" data-n="2">2</button></div>
+      </div>
+    </div>`;
   return `${back}
     <h2 class="sc-title">${esc(fullLabel(id))} ${badge(m, true)}</h2>
     <div class="courts"><span>Sân</span>${courts.map(c => `<button class="chip${m.court == c ? ' on' : ''}" data-act="court" data-c="${c}">${c}</button>`).join('')}</div>
-    ${panel('a')}${panel('b')}
+    ${panel('a')}${srvBar}${panel('b')}
     ${over && !fin ? `<div class="bar win-bar"><div><b>${esc(D.name(winner))}</b> chạm ${Math.max(m.sa, m.sb)} điểm</div><button class="btn dark" data-act="finish">Chốt kết quả</button></div>` : ''}
     ${fin ? `<div class="bar done-bar"><div>Đã kết thúc <b>${m.sa}–${m.sb}</b></div><button class="btn ghost" data-act="reopen">Mở lại để sửa</button></div>` : ''}
     ${m.st === 'pending' ? '<button class="btn primary wide" data-act="start">Bắt đầu trận — hiện “Đang đấu”</button>' : ''}
@@ -569,12 +591,19 @@ async function act(name, el) {
       if (m.st === 'done' || !m['s' + el.dataset.side]) return;
       return write({ [p + 's' + el.dataset.side]: INC(-1) });
     case 'start': return write(startPatch(id, D));
+    case 'sideout': {
+      if (m.st === 'done') return;
+      const { srv, sn } = serve(m);
+      return write(sn === 1 ? { [p + 'srv']: srv, [p + 'sn']: 2 } : { [p + 'srv']: srv === 'a' ? 'b' : 'a', [p + 'sn']: 1 });
+    }
+    case 'srv': return write({ [p + 'srv']: el.dataset.side, [p + 'sn']: serve(m).sn });
+    case 'sn': return write({ [p + 'srv']: serve(m).srv, [p + 'sn']: +el.dataset.n });
     case 'court': return write({ [p + 'court']: m.court == el.dataset.c ? null : +el.dataset.c });
     case 'finish': return write({ [p + 'st']: 'done', [p + 'endedAt']: NOW });
     case 'reopen': return write({ [p + 'st']: 'live', [p + 'endedAt']: null });
     case 'reset': {
       if (!confirm(`Đặt lại ${fullLabel(id)} về 0–0?`)) return;
-      const up = { [p + 'sa']: 0, [p + 'sb']: 0, [p + 'st']: 'pending', [p + 'court']: null, [p + 'startedAt']: null, [p + 'endedAt']: null };
+      const up = { [p + 'sa']: 0, [p + 'sb']: 0, [p + 'st']: 'pending', [p + 'court']: null, [p + 'startedAt']: null, [p + 'endedAt']: null, [p + 'srv']: null, [p + 'sn']: null };
       if (DEF[id].src) Object.assign(up, { [p + 'a']: null, [p + 'b']: null });
       return write(up);
     }

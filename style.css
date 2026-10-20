@@ -311,6 +311,34 @@ legend { padding: 0; margin-bottom: 6px; font-size: 13px; font-weight: 800; colo
 }
 .pn-minus:disabled { opacity: .3; }
 
+/* Giao bóng */
+.ball {
+  display: inline-block; flex: none; width: 12px; height: 12px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #e9ff9a, var(--lime) 60%, #a8d23a);
+  border: 1.5px solid var(--navy);
+}
+.pn-srv {
+  display: inline-flex; align-items: center; gap: 6px; margin-bottom: 4px;
+  padding: 3px 10px; border-radius: 99px; background: var(--navy); color: #fff;
+  font-size: 12px; font-weight: 800;
+}
+.pn-srv.off { visibility: hidden; }
+.pn-hit { grid-template-rows: auto auto 1fr auto; }
+.srv-bar {
+  margin: -2px 0 10px; padding: 10px 12px; border-radius: 12px;
+  background: var(--yellow-soft); border: 2px solid var(--yellow);
+}
+.srv-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.srv-call span { display: block; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.srv-call b { font: 800 28px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.srv-out { flex-direction: column; gap: 0; min-height: 52px; background: var(--navy); color: #fff; touch-action: manipulation; }
+.srv-out small { font-size: 11px; font-weight: 600; color: var(--lime); }
+.srv-set { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 10px; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.srv-set .grp { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.srv-set .grp span { margin-right: 2px; }
+.srv-set .chip { height: 32px; min-width: 34px; padding: 0 7px; font-size: 13px; }
+.srv-tag { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px 2px 4px; border-radius: 99px; background: var(--strip); font-size: 11px; font-weight: 800; color: var(--navy); white-space: nowrap; }
+
 .bar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-bottom: 10px; padding: 12px 14px; border-radius: 12px; font-size: 14px;

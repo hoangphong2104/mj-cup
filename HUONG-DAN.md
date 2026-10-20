@@ -41,6 +41,10 @@ Chưa điền Supabase vào `config.js` thì trang chạy **chế độ thử**:
 
 - **Chấm điểm:** mở link BTC, chạm vào trận → chọn số sân → chạm vào ô của cặp ghi điểm để +1, bấm `−1` nếu bấm nhầm.
   Trận tự chuyển sang “Đang đấu” khi có điểm đầu tiên. Đủ 11 điểm thì ô chấm khoá lại, bấm **Chốt kết quả**.
+- **Giao bóng (không bắt buộc):** ô vàng giữa hai cặp hiện cách gọi điểm, ví dụ `6 – 4 – 1` (điểm bên giao – điểm bên nhận – người giao).
+  Bên giao thua pha bóng thì bấm **Mất giao**: người 1 → người 2 → đổi giao sang cặp kia. Đầu trận bên giao trước chỉ có người số 2 (`0 – 0 – 2`).
+  Sai thì chọn lại tay bằng **Bên giao ▲ Trên / ▼ Dưới** và **Người 1 / 2**. Chạm +1 vẫn được bất kể ai đang giao.
+  Người xem thấy biểu tượng bóng **giao 1/2** cạnh cặp đang giao.
 - **Nhiều sân cùng lúc:** HanhVMN và MC mở hai trận khác nhau trên hai máy. Hai người cùng chấm một trận cũng không mất điểm.
 - **Nhập kết quả sau trận / sửa tỉ số sai:** trong trận → **Nhập tỉ số cuối**. Trận đã chốt muốn chấm tiếp → **Mở lại để sửa**.
 - **Vòng 8 đội, bán kết, chung kết** tự điền cặp đấu khi đủ kết quả vòng trước. Khi trận đã bắt đầu, cặp đấu được giữ cố định.
