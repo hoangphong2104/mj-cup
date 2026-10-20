@@ -1,7 +1,7 @@
 /* M&J CUP — tính điểm pickleball trực tiếp.
    Người xem: /mj-cup/        BTC chấm điểm: /mj-cup/#admin */
 
-const CFG = window.MJ_SUPABASE && window.MJ_SUPABASE.url ? window.MJ_SUPABASE : null;
+const CFG = window.MJ_SUPABASE && window.MJ_SUPABASE.url && window.MJ_SUPABASE.anonKey ? window.MJ_SUPABASE : null;
 const SB_LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 const INC = n => ({ __inc: n });
 const NOW = { __now: 1 };
