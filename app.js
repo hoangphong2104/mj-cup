@@ -13,19 +13,27 @@ const signed = n => (n > 0 ? '+' + n : String(n));
 const MEN = [
   'Vũ Thành Lâm & Việt Anh Cisco',
   'Phong Hoàng & Phạm Hồng Hải',
-  'Tiu & Tùng Đỗ',
+  'Tíu & Tùng Đỗ',
   'Nguyễn Sơn Hải & Đoàn Quang Tuấn',
   'Trần Phạm Việt Anh & Ngô Tuấn Thành',
+  'Tú Cisco & Hoàng',
 ];
 const MIX = [
   ['Go Han & Hoàng', 'Vũ Ngọc Anh & Hoàng Minh Tiến'],
   ['Thuhadey & Chu Lý Quỳnh', 'Bảo Ngọc & Trần Danh Thái'],
-  ['Thoa Malko & Trần Phạm Việt Anh', 'Huyền Hi Hi & Đoàn Quang Tuấn'],
+  ['Thoa Malka & Trần Phạm Việt Anh', 'Huyền Hí Hí & Đoàn Quang Tuấn'],
   ['Lê Thanh Loan & Lucifer', 'Hải Anh & Lê Hoàn'],
-  ['Doen & Tiu', 'Emily & Trung SSS'],
+  ['Doen & Tíu', 'Emly & Trung SSS'],
 ];
-// Thứ tự vòng tròn: mỗi cặp được nghỉ xen kẽ, không đánh 2 trận liền nhau.
-const MEN_PAIRS = [[1, 2], [3, 4], [5, 1], [2, 3], [4, 5], [1, 3], [2, 4], [3, 5], [4, 1], [5, 2]];
+// Vòng tròn 6 cặp = 5 lượt × 3 trận; mỗi lượt ai cũng đánh đúng 1 trận (3 sân đánh song song được),
+// và không cặp nào đánh trận cuối lượt này rồi lại đánh trận đầu lượt sau.
+const MEN_PAIRS = [
+  [1, 6], [2, 5], [3, 4],
+  [1, 5], [6, 4], [2, 3],
+  [1, 4], [5, 3], [6, 2],
+  [1, 3], [4, 2], [5, 6],
+  [1, 2], [3, 6], [4, 5],
+];
 
 const MEN_IDS = MEN_PAIRS.map((_, i) => 'N' + pad(i + 1));
 const R1_IDS = MIX.map((_, i) => 'R' + (i + 1));
@@ -268,13 +276,14 @@ function route() {
   const parts = decodeURIComponent(location.hash.slice(1)).split('/');
   if (parts[0] === 'admin') {
     if (parts[1] === 'm' && DEF[parts[2]]) return { admin: true, match: parts[2], view: parts[3] === 'edit' ? 'edit' : 'score' };
-    const tab = ['men', 'mix', 'set'].includes(parts[1]) ? parts[1] : 'live';
+    const tab = ['mix', 'set'].includes(parts[1]) ? parts[1] : 'men';
     return { admin: true, tab, view: tab };
   }
-  const tab = ['men', 'mix'].includes(parts[0]) ? parts[0] : 'live';
+  const tab = parts[0] === 'mix' ? 'mix' : 'men';
   return { admin: false, tab, view: tab };
 }
-const tabHref = (admin, k) => (admin ? (k === 'live' ? '#admin' : '#admin/' + k) : '#' + k);
+const tabHref = (admin, k) => (admin ? (k === 'men' ? '#admin' : '#admin/' + k) : '#' + k);
+const evOf = id => DEF[id].ev; // 'men' | 'mix'
 
 function render(force) {
   const r = route();
@@ -288,7 +297,7 @@ function render(force) {
 
   const D = derive(S || makeSeed());
   const views = {
-    live: () => viewLive(D, r.admin), men: () => viewMen(D, r.admin), mix: () => viewMix(D, r.admin),
+    men: () => viewMen(D, r.admin), mix: () => viewMix(D, r.admin),
     set: () => viewSet(D), score: () => viewScore(D, r.match), edit: () => viewEdit(D, r.match),
     login: viewLogin, init: viewInit,
     wait: () => '<div class="boot">Đang kiểm tra đăng nhập…</div>',
@@ -299,7 +308,7 @@ function render(force) {
     (focus ? '' : hero(D, r)) +
     (r.admin && isAdmin && !focus ? adminBar() : '') +
     (!r.admin && isAdmin && store.mode === 'server' ? '<a class="to-admin" href="#admin">Bạn là BTC · <b>Mở trang chấm điểm ›</b></a>' : '') +
-    (['live', 'men', 'mix', 'set'].includes(v) ? tabs(D, r) : '') +
+    (['men', 'mix', 'set'].includes(v) ? tabs(D, r) : '') +
     `<main class="wrap">${!S && loaded && !r.admin ? '<p class="note">BTC chưa mở giải — tỉ số sẽ hiện ở đây khi trận đầu bắt đầu.</p>' : ''}${views[v]()}</main>` +
     (focus ? '' : footer(r));
   paintConn();
@@ -327,16 +336,17 @@ function paintConn() {
 function adminBar() {
   const who = store.mode === 'demo' ? 'Chế độ thử' : 'Đang chấm điểm';
   return `<div class="adminbar"><span class="ab-tag">BTC</span><span class="ab-who">${who}</span>
-    <a href="#live" class="ab-link">Trang người xem</a>
+    <a href="#admin/set" class="ab-btn${route().tab === 'set' ? ' on' : ''}">${ICON.gear} Cài đặt</a>
+    <a href="#men" class="ab-link">Trang người xem</a>
     ${store.mode === 'server' ? '<button class="ab-link" data-act="logout">Thoát BTC</button>' : ''}</div>`;
 }
 
 function tabs(D, r) {
-  const live = ALL_IDS.filter(id => D.st(id) === 'live').length;
-  const items = [['live', 'Trực tiếp'], ['men', 'Đôi nam'], ['mix', 'Đôi nam nữ']];
-  if (r.admin) items.push(['set', 'Cài đặt']);
-  return `<nav class="tabs${r.admin ? ' admin' : ''}">${items.map(([k, t]) =>
-    `<a href="${tabHref(r.admin, k)}" class="${r.tab === k ? 'on' : ''}">${t}${k === 'live' && live ? `<span class="cnt">${live}</span>` : ''}</a>`).join('')}</nav>`;
+  const items = [['men', 'Đôi nam'], ['mix', 'Đôi nam nữ']];
+  return `<nav class="tabs${r.admin ? ' admin' : ''}">${items.map(([k, t]) => {
+    const live = ALL_IDS.filter(id => evOf(id) === k && D.st(id) === 'live').length;
+    return `<a href="${tabHref(r.admin, k)}" class="${r.tab === k ? 'on' : ''}">${t}${live ? `<span class="cnt" title="Đang đấu">${live}</span>` : ''}</a>`;
+  }).join('')}</nav>`;
 }
 
 function footer(r) {
@@ -347,6 +357,7 @@ function footer(r) {
 }
 
 const ICON = {
+  gear: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   share: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>',
   trophy: '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>',
 };
@@ -392,29 +403,21 @@ function champ(D, title, id, placeholder) {
 const tieBtn = (admin, r, list) =>
   admin && r.tie && !r.tieTop ? `<button class="tb" data-act="tb" data-list="${list}" data-id="${r.id}" aria-label="Xếp lên trên">▲</button>` : '';
 
-// ---------- Trang: Trực tiếp ----------
-function viewLive(D, admin) {
-  const live = ALL_IDS.filter(id => D.st(id) === 'live').sort((x, y) => (D.M[x].court || 99) - (D.M[y].court || 99));
-  const next = ALL_IDS.filter(id => D.st(id) === 'pending' && D.sides(id).a && D.sides(id).b).slice(0, 5);
-  const recent = ALL_IDS.filter(id => D.st(id) === 'done').sort((x, y) => (D.M[y].endedAt || 0) - (D.M[x].endedAt || 0)).slice(0, 6);
-  const doneCount = ALL_IDS.filter(id => D.st(id) === 'done').length;
-  let h = '';
-  if (D.menDone) h += champ(D, 'Vô địch Đôi nam', D.men[0].id);
-  h += champ(D, 'Vô địch Đôi nam nữ', D.winner('F'));
-  if (admin) h += '<p class="hint">Chạm vào một trận để chấm điểm.</p>';
-  h += `<section class="sec"><h2 class="sec-h">Đang thi đấu</h2>${live.length ? cards(D, live, admin, { full: true, big: true }) : '<p class="empty">Chưa có trận nào đang diễn ra.</p>'}</section>`;
-  if (next.length) h += `<section class="sec"><h2 class="sec-h">Sắp diễn ra</h2>${cards(D, next, admin, { full: true })}</section>`;
-  if (recent.length) h += `<section class="sec"><h2 class="sec-h">Kết quả mới nhất</h2>${cards(D, recent, admin, { full: true })}</section>`;
-  h += `<p class="progress">Đã xong ${doneCount}/${ALL_IDS.length} trận</p>`;
-  return h;
+// Các trận đang đấu của một hạng mục, hiện ở đầu tab.
+function liveBlock(D, ev, admin) {
+  const live = ALL_IDS.filter(id => evOf(id) === ev && D.st(id) === 'live')
+    .sort((x, y) => (D.M[x].court || 99) - (D.M[y].court || 99));
+  return (admin ? '<p class="hint">Chạm vào một trận để chấm điểm.</p>' : '') +
+    (live.length ? `<section class="sec"><h2 class="sec-h"><span class="dot"></span>Đang thi đấu</h2>${cards(D, live, admin, { big: true })}</section>` : '');
 }
 
 // ---------- Trang: Đôi nam ----------
 function viewMen(D, admin) {
   const played = MEN_IDS.filter(id => D.st(id) === 'done').length;
   const ties = D.men.some(r => r.tie);
-  return `${evHead('Đôi nam', 'pink', 'Vòng tròn 1 bảng', `5 cặp · ${played}/10 trận`)}
+  return `${evHead('Đôi nam', 'pink', 'Vòng tròn 1 bảng', `${MEN.length} cặp · ${played}/${MEN_IDS.length} trận`)}
     ${D.menDone ? champ(D, 'Vô địch Đôi nam', D.men[0].id) : ''}
+    ${liveBlock(D, 'men', admin)}
     <section class="sec"><h2 class="sec-h">Bảng xếp hạng${D.menDone ? '' : ' <small>tạm tính</small>'}</h2>
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th>#</th><th class="l">Cặp đấu</th><th>Trận</th><th class="hot">Thắng</th><th class="hot">HS</th></tr></thead>
@@ -442,6 +445,7 @@ function viewMix(D, admin) {
   }).join('');
   return `${evHead('Đôi nam nữ', 'lime', 'Vòng 1 → Loại trực tiếp', '10 cặp')}
     ${champ(D, 'Vô địch Đôi nam nữ', D.winner('F'))}
+    ${liveBlock(D, 'mix', admin)}
     <section class="sec">${sub('Vòng 1', 'navy')}<p class="fine top">5 cặp thắng + 3 cặp thua có hiệu số tốt nhất vào Vòng 8 đội.</p>${cards(D, R1_IDS, admin)}</section>
     <section class="sec"><h2 class="sec-h">Xếp hạng Vòng 1${D.r1Done ? '' : ' <small>tạm tính</small>'}</h2>
     <div class="tbl-wrap"><table class="tbl">
@@ -458,7 +462,7 @@ function viewMix(D, admin) {
 function viewScore(D, id) {
   const m = { st: 'pending', sa: 0, sb: 0, ...(D.M[id] || {}) };
   const s = D.sides(id), meta = D.meta;
-  const back = `<div class="sc-top"><a href="#admin" class="back">‹ Danh sách trận</a><span class="conn" id="conn"></span></div>`;
+  const back = `<div class="sc-top"><a href="${tabHref(true, evOf(id))}" class="back">‹ Danh sách trận</a><span class="conn" id="conn"></span></div>`;
   if (!s.a || !s.b) return back + `<h2 class="sc-title">${esc(fullLabel(id))}</h2><p class="empty">Trận này chưa xác định đủ 2 cặp.</p>`;
   const fin = m.st === 'done', over = isOver(m.sa, m.sb, meta);
   const { srv, sn } = serve(m);
@@ -507,7 +511,7 @@ function viewScore(D, id) {
 function viewEdit(D, id) {
   const m = { sa: 0, sb: 0, ...(D.M[id] || {}) };
   const s = D.sides(id);
-  if (!s.a || !s.b) return `<div class="sc-top"><a href="#admin" class="back">‹ Danh sách trận</a></div><p class="empty">Trận này chưa xác định đủ 2 cặp.</p>`;
+  if (!s.a || !s.b) return `<div class="sc-top"><a href="${tabHref(true, evOf(id))}" class="back">‹ Danh sách trận</a></div><p class="empty">Trận này chưa xác định đủ 2 cặp.</p>`;
   return `<div class="sc-top"><a href="#admin/m/${id}" class="back">‹ Quay lại chấm điểm</a></div>
     <h2 class="sc-title">${esc(fullLabel(id))}</h2>
     <form class="card form" data-form="edit" data-id="${id}">
@@ -561,7 +565,7 @@ function viewLogin() {
 }
 function viewInit() {
   return `<section class="card narrow"><h3>Khởi tạo giải</h3>
-    <p>Máy chủ chưa có dữ liệu. Bấm để tạo 22 trận (10 trận Đôi nam, 12 trận Đôi nam nữ) với danh sách cặp theo sơ đồ.</p>
+    <p>Máy chủ chưa có dữ liệu. Bấm để tạo ${ALL_IDS.length} trận (${MEN_IDS.length} trận Đôi nam, ${ALL_IDS.length - MEN_IDS.length} trận Đôi nam nữ) với danh sách cặp theo sơ đồ.</p>
     <button class="btn primary wide" data-act="seed">Khởi tạo M&amp;J CUP</button></section>`;
 }
 
@@ -622,7 +626,7 @@ async function act(name, el) {
       return write({ ['tb/' + row.id]: max + 1 });
     }
     case 'seed': await store.seed(); return toast('Đã khởi tạo giải');
-    case 'logout': await store.logout(); location.hash = '#live'; return;
+    case 'logout': await store.logout(); location.hash = '#men'; return;
     case 'share': return share();
   }
 }
