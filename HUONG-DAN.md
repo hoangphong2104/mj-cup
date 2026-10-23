@@ -51,11 +51,14 @@ Chưa điền Supabase vào `config.js` thì trang chạy **chế độ thử**:
 - **Bằng điểm:** nếu hai cặp bằng mọi chỉ số, bảng xếp hạng hiện dấu `=`. BTC bấm nút **▲** (chỉ có ở trang BTC) để đưa cặp đó lên trên.
 - **Đổi tên cặp, luật điểm (11/15/21, cách 2 điểm), số sân:** nút **⚙ Cài đặt** trên thanh BTC.
 
-## Luật xếp hạng đang dùng
+## Thể thức + lịch đang dùng
 
-- **Đôi nam (vòng tròn 6 cặp, 15 trận — 5 lượt × 3 trận, mỗi lượt ai cũng đánh 1 trận):** số trận thắng → hiệu số → tổng điểm ghi được → BTC quyết định.
-- **Đôi nam nữ Vòng 1:** 5 cặp thắng xếp hạng 1–5, cặp thua xếp hạng 6–10; cùng nhóm xét hiệu số → tổng điểm → BTC quyết định. Hạng 1–8 vào Vòng 8 đội:
-  8.1 = H1 gặp H8 · 8.2 = H4 gặp H5 · 8.3 = H2 gặp H7 · 8.4 = H3 gặp H6. Bán kết 1 = thắng 8.1 gặp thắng 8.2, Bán kết 2 = thắng 8.3 gặp thắng 8.4.
+- **Lịch:** 2 sân (Sân 3, Sân 33), khởi động 08:00, 18 lượt từ 08:15 đến 11:45. Tab **Lịch đấu** là trang mặc định; người chơi gõ tên vào ô tìm để thấy trận của mình.
+  Lịch trễ thì BTC sửa giờ các lượt trong **⚙ Cài đặt → Sân & giờ thi đấu**.
+- **Đôi nam (6 cặp, vòng tròn 15 trận, chạm 11):** xếp theo số trận thắng → hiệu số → tổng điểm ghi được → BTC quyết định. Hạng 1 gặp hạng 2 ở **Chung kết Đôi nam** (chạm 11).
+- **Đôi nam nữ (12 cặp):** Vòng 1 mỗi cặp đánh 2 trận (12 trận, chạm 7), xếp như trên; 8 cặp đầu vào Vòng 8 đội:
+  8.1 = H1 gặp H8 · 8.2 = H4 gặp H5 · 8.3 = H2 gặp H7 · 8.4 = H3 gặp H6. Bán kết 1 = thắng 8.1 gặp thắng 8.2, Bán kết 2 = thắng 8.3 gặp thắng 8.4 (chạm 7). **Chung kết** chạm 11.
+- Hai trận chung kết đánh cùng lúc lúc 11:45.
 
 ## Thử trên máy
 
