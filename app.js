@@ -109,7 +109,7 @@ function derive(S) {
   const st = id => (M[id] && M[id].st) || 'pending';
   const name = id => (T[id] && T[id].name) || '—';
 
-  // Bảng điểm vòng tròn / vòng bảng: hiệu số → tổng điểm ghi được → BTC xếp tay (không xét số trận thắng).
+  // Bảng điểm vòng tròn / vòng bảng: số trận thắng → hiệu số → tổng điểm ghi được → BTC xếp tay.
   function standings(teamIds, matchIds) {
     const rows = teamIds.map(id => ({ id, p: 0, w: 0, f: 0, a: 0 }));
     const row = Object.fromEntries(rows.map(r => [r.id, r]));
@@ -122,10 +122,10 @@ function derive(S) {
       (m.sa > m.sb ? A : B).w++;
     });
     rows.forEach(r => (r.diff = r.f - r.a));
-    rows.sort((x, y) => y.diff - x.diff || y.f - x.f || (tb[y.id] || 0) - (tb[x.id] || 0));
+    rows.sort((x, y) => y.w - x.w || y.diff - x.diff || y.f - x.f || (tb[y.id] || 0) - (tb[x.id] || 0));
     rows.forEach((r, i) => (r.rank = i + 1));
     const done = matchIds.every(id => st(id) === 'done');
-    if (done) markTies(rows, r => `${r.diff}|${r.f}`);
+    if (done) markTies(rows, r => `${r.w}|${r.diff}|${r.f}`);
     return { rows, done };
   }
   const { rows: men, done: menDone } = standings(MEN_TEAMS, MEN_IDS);
@@ -154,9 +154,11 @@ function derive(S) {
     const at = SLOT_OF[id], m = M[id] || {};
     return { time: at ? slotTime(at.i) : '', court: m.court || (at ? meta.courts[at.c] || COURTS[at.c] : ''), slot: at ? at.i : -1 };
   };
-  const targetOf = id => (id === 'F' || id === 'MF' ? meta.finalTarget : DEF[id].ev === 'mix' ? meta.mixTarget : meta.target);
+  const targetOf = id => (id === 'F' || id === 'MF' ? meta.finalTarget : meta.target);
+  // Đôi nam nữ: chạm mixTarget là BTC được kết thúc sớm, cặp đang dẫn thắng.
+  const canEarly = (id, m) => DEF[id].ev === 'mix' && Math.max(m.sa, m.sb) >= meta.mixTarget;
 
-  return { M, T, meta, st, name, sides, winner, men, menDone, mixT, r1Done, slotTime, where, targetOf, warmTime: times.w || WARMUP.time };
+  return { M, T, meta, st, name, sides, winner, men, menDone, mixT, r1Done, slotTime, where, targetOf, canEarly, warmTime: times.w || WARMUP.time };
 }
 
 // Giao bóng đánh đôi: đầu trận bên giao trước chỉ có người số 2 (gọi điểm "0–0–2").
@@ -346,7 +348,7 @@ function hero(D, r) {
   return `<header class="hero">
     <h1 class="logo">M&amp;J CUP</h1>
     <p class="sub">Giải pickleball kỷ niệm một năm ngày cưới <b>Mike &amp; Go Han</b></p>
-    <div class="rule"><span class="rule-tag">Luật chung</span><span>Đánh chạm <b>${m.target}</b> trước là thắng${m.winBy > 1 ? ` · cách ${m.winBy} điểm` : ''}<small> · Đôi nam nữ chạm ${m.mixTarget}, riêng chung kết chạm ${m.finalTarget}</small></span></div>
+    <div class="rule"><span class="rule-tag">Luật chung</span><span>Đánh chạm <b>${m.target}</b> trước là thắng${m.winBy > 1 ? ` · cách ${m.winBy} điểm` : ''}<small> · Chung kết chạm ${m.finalTarget} · Đôi nam nữ chạm ${m.mixTarget} là BTC có thể kết thúc sớm</small></span></div>
     <div class="conn" id="conn"></div>
   </header>`;
 }
@@ -468,8 +470,8 @@ function viewSchedule(D, admin) {
   const isNow = cur >= 0;
   if (!isNow) cur = slotSt.findIndex(a => a.some(x => x !== 'done'));
   const phaseTitle = {
-    p1: `Phần 1 · Đôi nam vòng tròn (chạm ${D.meta.target}) + Vòng 1 Đôi nam nữ (chạm ${D.meta.mixTarget})`,
-    p2: `Phần 2 · Loại trực tiếp Đôi nam nữ (chạm ${D.meta.mixTarget})`,
+    p1: `Phần 1 · Đôi nam vòng tròn (chạm ${D.meta.target}) + Vòng 1 Đôi nam nữ (chạm ${D.meta.target})`,
+    p2: `Phần 2 · Loại trực tiếp Đôi nam nữ (chạm ${D.meta.target})`,
     p3: `Phần 3 · Hai trận chung kết (chạm ${D.meta.finalTarget}) · đánh cùng lúc 2 sân`,
   };
   let found = 0, h = '';
@@ -508,13 +510,13 @@ function viewSchedule(D, admin) {
 function standingsTable(D, rows, done, list, admin, qualify) {
   const ties = rows.some(r => r.tie);
   return `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>#</th><th class="l">Cặp đấu</th><th>Trận</th><th class="hot">HS</th><th>Điểm</th></tr></thead>
+      <thead><tr><th>#</th><th class="l">Cặp đấu</th><th class="hot">Thắng</th><th>Thua</th><th>HS</th><th>Điểm</th></tr></thead>
       <tbody>${rows.map(r => `<tr class="${done ? (r.rank <= qualify ? 'in' : 'out') : ''}">
         <td class="rk"><span class="num">${r.p || done ? r.rank : '–'}</span>${r.tie ? '<sup>=</sup>' : ''}</td>
         <td class="l"><div class="cell">${teamCell(D, r.id)}${tieBtn(admin, r, list)}</div></td>
-        <td>${r.p}</td><td class="b ${r.diff > 0 ? 'pos' : r.diff < 0 ? 'neg' : ''}">${signed(r.diff)}</td><td class="pts">${r.f}–${r.a}</td></tr>`).join('')}</tbody>
+        <td class="b">${r.w}</td><td>${r.p - r.w}</td><td class="${r.diff > 0 ? 'pos' : r.diff < 0 ? 'neg' : ''}">${signed(r.diff)}</td><td class="pts">${r.f}–${r.a}</td></tr>`).join('')}</tbody>
     </table></div>
-    <p class="fine">Xếp theo <b>hiệu số</b> (điểm ghi − điểm mất) → tổng điểm ghi được.${ties ? ' <b>=</b> bằng cả hai: BTC quyết định thứ tự.' : ''}</p>`;
+    <p class="fine">Xếp theo <b>số trận thắng</b> → hiệu số (điểm ghi − điểm mất) → tổng điểm ghi được.${ties ? ' <b>=</b> bằng cả ba: BTC quyết định thứ tự.' : ''}</p>`;
 }
 
 function viewMen(D, admin) {
@@ -535,7 +537,7 @@ function viewMix(D, admin) {
   return `${evHead('Đôi nam nữ', 'lime', 'Vòng 1 → Loại trực tiếp', `${MIX.length} cặp · ${played}/${R1_IDS.length} trận vòng 1`)}
     ${champ(D, 'Vô địch Đôi nam nữ', D.winner('F'))}
     ${liveBlock(D, 'mix', admin)}
-    <section class="sec">${sub('Vòng 1', 'navy')}<p class="fine top">Mỗi cặp đánh 2 trận, chạm ${D.meta.mixTarget} · 8 cặp đầu vào Vòng 8 đội.</p>
+    <section class="sec">${sub('Vòng 1', 'navy')}<p class="fine top">Mỗi cặp đánh 2 trận, chạm ${D.meta.target} (được kết thúc sớm khi chạm ${D.meta.mixTarget}) · 8 cặp đầu vào Vòng 8 đội.</p>
     <h2 class="sec-h">Xếp hạng Vòng 1${D.r1Done ? '' : ' <small>tạm tính</small>'}</h2>
     ${standingsTable(D, D.mixT, D.r1Done, 'mix', admin, 8)}</section>
     <section class="sec"><h2 class="sec-h">Các trận Vòng 1</h2>${cards(D, R1_IDS, admin)}</section>
@@ -587,6 +589,9 @@ function viewScore(D, id) {
     <div class="courts"><span>Sân</span>${meta.courts.map(c => `<button class="chip${w.court === c ? ' on' : ''}" data-act="court" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
     ${panel('a')}${srvBar}${panel('b')}
     ${over && !fin ? `<div class="bar win-bar"><div><b>${esc(D.name(winner))}</b> chạm ${Math.max(m.sa, m.sb)} điểm</div><button class="btn dark" data-act="finish">Chốt kết quả</button></div>` : ''}
+    ${!over && !fin && D.canEarly(id, m) ? `<div class="bar win-bar">${m.sa === m.sb
+      ? `<div>Đang hoà <b>${m.sa}–${m.sb}</b> — cần dẫn ít nhất 1 điểm mới kết thúc sớm được</div>`
+      : `<div><b>${esc(D.name(winner))}</b> dẫn ${Math.max(m.sa, m.sb)}–${Math.min(m.sa, m.sb)} · đã chạm ${meta.mixTarget}</div><button class="btn dark" data-act="finish" data-early="1">Kết thúc — cặp này thắng</button>`}</div>` : ''}
     ${fin ? `<div class="bar done-bar"><div>Đã kết thúc <b>${m.sa}–${m.sb}</b></div><button class="btn ghost" data-act="reopen">Mở lại để sửa</button></div>` : ''}
     ${m.st === 'pending' ? '<button class="btn primary wide" data-act="start">Bắt đầu trận — hiện “Đang đấu”</button>' : ''}
     <div class="sc-tools">
@@ -617,8 +622,8 @@ function viewSet(D) {
   const num = (name, label, v) => `<label>${label}<input name="${name}" type="number" inputmode="numeric" min="1" max="99" value="${v}"></label>`;
   return `<form class="form" data-form="settings">
     <section class="card"><h3>Luật</h3>
-      ${num('target', 'Đôi nam vòng tròn — chạm', meta.target)}
-      ${num('mixTarget', 'Đôi nam nữ (vòng 1, vòng 8, bán kết) — chạm', meta.mixTarget)}
+      ${num('target', 'Các trận (trừ chung kết) — chạm', meta.target)}
+      ${num('mixTarget', 'Đôi nam nữ — được kết thúc sớm khi chạm', meta.mixTarget)}
       ${num('finalTarget', 'Hai trận chung kết — chạm', meta.finalTarget)}
       <label>Cách biệt tối thiểu<select name="winBy">
         <option value="1"${meta.winBy === 1 ? ' selected' : ''}>1 điểm — chạm là thắng</option>
@@ -702,7 +707,9 @@ async function act(name, el) {
       const c = el.dataset.c, plan = D.meta.courts[SLOT_OF[id] ? SLOT_OF[id].c : -1];
       return write({ [p + 'court']: c === plan ? null : c }); // trùng sân theo lịch thì bỏ ghi đè
     }
-    case 'finish': return write({ [p + 'st']: 'done', [p + 'endedAt']: NOW });
+    case 'finish':
+      if (el.dataset.early && !confirm(`Kết thúc sớm ${fullLabel(id)} với tỉ số ${m.sa}–${m.sb}?`)) return;
+      return write({ [p + 'st']: 'done', [p + 'endedAt']: NOW });
     case 'reopen': return write({ [p + 'st']: 'live', [p + 'endedAt']: null });
     case 'reset': {
       if (!confirm(`Đặt lại ${fullLabel(id)} về 0–0?`)) return;
