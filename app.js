@@ -510,11 +510,11 @@ function viewSchedule(D, admin) {
 function standingsTable(D, rows, done, list, admin, qualify) {
   const ties = rows.some(r => r.tie);
   return `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>#</th><th class="l">Cặp đấu</th><th class="hot">Thắng</th><th>Thua</th><th>HS</th><th>Điểm</th></tr></thead>
+      <thead><tr><th>#</th><th class="l">Cặp đấu</th><th>Trận</th><th class="hot">Thắng<br>/Thua</th><th>HS</th><th>Điểm</th></tr></thead>
       <tbody>${rows.map(r => `<tr class="${done ? (r.rank <= qualify ? 'in' : 'out') : ''}">
         <td class="rk"><span class="num">${r.p || done ? r.rank : '–'}</span>${r.tie ? '<sup>=</sup>' : ''}</td>
         <td class="l"><div class="cell">${teamCell(D, r.id)}${tieBtn(admin, r, list)}</div></td>
-        <td class="b">${r.w}</td><td>${r.p - r.w}</td><td class="${r.diff > 0 ? 'pos' : r.diff < 0 ? 'neg' : ''}">${signed(r.diff)}</td><td class="pts">${r.f}–${r.a}</td></tr>`).join('')}</tbody>
+        <td>${r.p}</td><td class="b">${r.w}/${r.p - r.w}</td><td class="${r.diff > 0 ? 'pos' : r.diff < 0 ? 'neg' : ''}">${signed(r.diff)}</td><td class="pts">${r.f}–${r.a}</td></tr>`).join('')}</tbody>
     </table></div>
     <p class="fine">Xếp theo <b>số trận thắng</b> → hiệu số (điểm ghi − điểm mất) → tổng điểm ghi được.${ties ? ' <b>=</b> bằng cả ba: BTC quyết định thứ tự.' : ''}</p>`;
 }
