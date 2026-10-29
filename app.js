@@ -154,7 +154,7 @@ function derive(S) {
     const at = SLOT_OF[id], m = M[id] || {};
     return { time: at ? slotTime(at.i) : '', court: m.court || (at ? meta.courts[at.c] || COURTS[at.c] : ''), slot: at ? at.i : -1 };
   };
-  const targetOf = id => (id === 'F' || id === 'MF' ? meta.finalTarget : DEF[id].ev === 'mix' ? meta.mixTarget : meta.target);
+  const targetOf = id => (id === 'MF' ? meta.finalTarget : DEF[id].ev === 'mix' ? meta.mixTarget : meta.target);
 
   return { M, T, meta, st, name, sides, winner, men, menDone, mixT, r1Done, slotTime, where, targetOf, warmTime: times.w || WARMUP.time };
 }
@@ -346,7 +346,7 @@ function hero(D, r) {
   return `<header class="hero">
     <h1 class="logo">M&amp;J CUP</h1>
     <p class="sub">Giải pickleball kỷ niệm một năm ngày cưới <b>Mike &amp; Go Han</b></p>
-    <div class="rule"><span class="rule-tag">Luật chung</span><span>Đánh chạm <b>${m.target}</b> trước là thắng${m.winBy > 1 ? ` · cách ${m.winBy} điểm` : ''}<small> · Đôi nam nữ chạm ${m.mixTarget}, riêng chung kết chạm ${m.finalTarget}</small></span></div>
+    <div class="rule"><span class="rule-tag">Luật chung</span><span>Đánh chạm <b>${m.target}</b> trước là thắng${m.winBy > 1 ? ` · cách ${m.winBy} điểm` : ''}<small> · Đôi nam nữ chạm ${m.mixTarget} (cả chung kết) · chung kết Đôi nam chạm ${m.finalTarget}</small></span></div>
     <div class="conn" id="conn"></div>
   </header>`;
 }
@@ -470,7 +470,7 @@ function viewSchedule(D, admin) {
   const phaseTitle = {
     p1: `Phần 1 · Đôi nam vòng tròn (chạm ${D.meta.target}) + Vòng 1 Đôi nam nữ (chạm ${D.meta.mixTarget})`,
     p2: `Phần 2 · Loại trực tiếp Đôi nam nữ (chạm ${D.meta.mixTarget})`,
-    p3: `Phần 3 · Hai trận chung kết (chạm ${D.meta.finalTarget}) · đánh cùng lúc 2 sân`,
+    p3: `Phần 3 · Hai trận chung kết (Đôi nam chạm ${D.meta.finalTarget}, Đôi nam nữ chạm ${D.meta.mixTarget}) · đánh cùng lúc 2 sân`,
   };
   let found = 0, h = '';
   if (!q) h += `<div class="warm"><b>${esc(D.warmTime)}</b><span>${WARMUP.text}</span><small>${WARMUP.note}</small></div>`;
@@ -508,11 +508,11 @@ function viewSchedule(D, admin) {
 function standingsTable(D, rows, done, list, admin, qualify) {
   const ties = rows.some(r => r.tie);
   return `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>#</th><th class="l">Cặp đấu</th><th class="hot">Thắng</th><th>HS</th><th>Điểm</th></tr></thead>
+      <thead><tr><th>#</th><th class="l">Cặp đấu</th><th class="hot">Thắng</th><th>Thua</th><th>HS</th><th>Điểm</th></tr></thead>
       <tbody>${rows.map(r => `<tr class="${done ? (r.rank <= qualify ? 'in' : 'out') : ''}">
         <td class="rk"><span class="num">${r.p || done ? r.rank : '–'}</span>${r.tie ? '<sup>=</sup>' : ''}</td>
         <td class="l"><div class="cell">${teamCell(D, r.id)}${tieBtn(admin, r, list)}</div></td>
-        <td class="b">${r.w}<small class="pts">/${r.p}</small></td><td class="${r.diff > 0 ? 'pos' : r.diff < 0 ? 'neg' : ''}">${signed(r.diff)}</td><td class="pts">${r.f}–${r.a}</td></tr>`).join('')}</tbody>
+        <td class="b">${r.w}</td><td>${r.p - r.w}</td><td class="${r.diff > 0 ? 'pos' : r.diff < 0 ? 'neg' : ''}">${signed(r.diff)}</td><td class="pts">${r.f}–${r.a}</td></tr>`).join('')}</tbody>
     </table></div>
     <p class="fine">Xếp theo <b>số trận thắng</b> → hiệu số (điểm ghi − điểm mất) → tổng điểm ghi được.${ties ? ' <b>=</b> bằng cả ba: BTC quyết định thứ tự.' : ''}</p>`;
 }
@@ -541,7 +541,7 @@ function viewMix(D, admin) {
     <section class="sec"><h2 class="sec-h">Các trận Vòng 1</h2>${cards(D, R1_IDS, admin)}</section>
     <section class="sec">${sub('Vòng 8 đội', 'navy')}${cards(D, QF_IDS, admin)}</section>
     <section class="sec">${sub('Bán kết', 'navy')}${cards(D, SF_IDS, admin)}</section>
-    <section class="sec">${sub('Chung kết', 'yellow')}<p class="fine top">Chạm ${D.meta.finalTarget}.</p>${cards(D, ['F'], admin, { big: true })}${champ(D, 'Vô địch', D.winner('F'), true)}</section>`;
+    <section class="sec">${sub('Chung kết', 'yellow')}<p class="fine top">Chạm ${D.meta.mixTarget}.</p>${cards(D, ['F'], admin, { big: true })}${champ(D, 'Vô địch', D.winner('F'), true)}</section>`;
 }
 
 // ---------- BTC: chấm điểm 1 trận ----------
@@ -618,8 +618,8 @@ function viewSet(D) {
   return `<form class="form" data-form="settings">
     <section class="card"><h3>Luật</h3>
       ${num('target', 'Đôi nam vòng tròn — chạm', meta.target)}
-      ${num('mixTarget', 'Đôi nam nữ (vòng 1, vòng 8, bán kết) — chạm', meta.mixTarget)}
-      ${num('finalTarget', 'Hai trận chung kết — chạm', meta.finalTarget)}
+      ${num('mixTarget', 'Đôi nam nữ (tất cả các trận, kể cả chung kết) — chạm', meta.mixTarget)}
+      ${num('finalTarget', 'Chung kết Đôi nam — chạm', meta.finalTarget)}
       <label>Cách biệt tối thiểu<select name="winBy">
         <option value="1"${meta.winBy === 1 ? ' selected' : ''}>1 điểm — chạm là thắng</option>
         <option value="2"${meta.winBy === 2 ? ' selected' : ''}>2 điểm</option></select></label>

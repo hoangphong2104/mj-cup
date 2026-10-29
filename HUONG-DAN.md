@@ -57,7 +57,7 @@ Chưa điền Supabase vào `config.js` thì trang chạy **chế độ thử**:
   Lịch trễ thì BTC sửa giờ các lượt trong **⚙ Cài đặt → Sân & giờ thi đấu**.
 - **Đôi nam (6 cặp, vòng tròn 15 trận, chạm 11):** xếp theo **số trận thắng** → hiệu số → tổng điểm ghi được → BTC quyết định. Hạng 1 gặp hạng 2 ở **Chung kết Đôi nam** (chạm 11).
 - **Đôi nam nữ (12 cặp):** Vòng 1 mỗi cặp đánh 2 trận (12 trận, chạm 7), xếp như trên (số trận thắng đứng đầu); 8 cặp đầu vào Vòng 8 đội:
-  8.1 = H1 gặp H8 · 8.2 = H4 gặp H5 · 8.3 = H2 gặp H7 · 8.4 = H3 gặp H6. Bán kết 1 = thắng 8.1 gặp thắng 8.2, Bán kết 2 = thắng 8.3 gặp thắng 8.4 (chạm 7). **Chung kết** chạm 11.
+  8.1 = H1 gặp H8 · 8.2 = H4 gặp H5 · 8.3 = H2 gặp H7 · 8.4 = H3 gặp H6. Bán kết 1 = thắng 8.1 gặp thắng 8.2, Bán kết 2 = thắng 8.3 gặp thắng 8.4 (chạm 7). **Chung kết** cũng chạm 7 (mọi trận Đôi nam nữ đều chạm 7).
 - Hai trận chung kết đánh cùng lúc lúc 11:50.
 
 ## Thử trên máy
