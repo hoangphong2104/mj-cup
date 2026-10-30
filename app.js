@@ -31,20 +31,25 @@ const MIX = [
   'Vũ Ngọc Anh & Hoàng Minh Tiến',
   'Go Han & Hoàng',
   'Nana & Tú Cisco',
+  'Đing Đinh & Thảo Mun',
 ];
 // Đôi nam: 15 trận vòng tròn, đánh số theo thứ tự xuất hiện trong lịch.
-const MEN_PAIRS = [[1, 6], [2, 3], [3, 5], [4, 6], [1, 2], [4, 5], [1, 3], [5, 6], [2, 6], [3, 4], [1, 4], [2, 5], [1, 5], [3, 6], [2, 4]];
-// Đôi nam nữ Vòng 1: 12 trận, mỗi cặp đánh 2 trận.
-const MIX_PAIRS = [[4, 1], [12, 3], [1, 2], [3, 4], [11, 12], [5, 6], [7, 8], [9, 10], [2, 5], [10, 11], [6, 7], [8, 9]];
+const MEN_PAIRS = [[1, 6], [2, 3], [3, 4], [1, 5], [2, 6], [1, 4], [3, 5], [2, 5], [4, 6], [1, 2], [3, 6], [1, 3], [4, 5], [2, 4], [5, 6]];
+// Đôi nam nữ Vòng 1: 13 trận, mỗi cặp đánh 2 trận.
+const MIX_PAIRS = [[12, 13], [1, 2], [13, 1], [2, 5], [5, 6], [4, 12], [11, 3], [9, 10], [7, 8], [6, 7], [3, 4], [10, 11], [8, 9]];
 
 const MEN_TEAMS = MEN.map((_, i) => 'm' + (i + 1));
 const MIX_TEAMS = MIX.map((_, i) => 'x' + (i + 1));
 const TEAM_IDS = [...MEN_TEAMS, ...MIX_TEAMS];
+const TEAM_NAME = Object.fromEntries([...MEN.map((n, i) => [MEN_TEAMS[i], n]), ...MIX.map((n, i) => [MIX_TEAMS[i], n])]);
 const MEN_IDS = MEN_PAIRS.map((_, i) => 'N' + pad(i + 1));
 const R1_IDS = MIX_PAIRS.map((_, i) => 'R' + (i + 1));
 const QF_IDS = ['Q1', 'Q2', 'Q3', 'Q4'];
 const SF_IDS = ['S1', 'S2'];
 const ALL_IDS = [...MEN_IDS, 'MF', ...R1_IDS, ...QF_IDS, ...SF_IDS, 'F'];
+const PAIR_OF = {}; // cặp đấu cố định theo lịch của các trận vòng tròn / vòng 1
+MEN_PAIRS.forEach(([a, b], i) => (PAIR_OF[MEN_IDS[i]] = { a: 'm' + a, b: 'm' + b }));
+MIX_PAIRS.forEach(([a, b], i) => (PAIR_OF[R1_IDS[i]] = { a: 'x' + a, b: 'x' + b }));
 
 const DEF = {};
 MEN_IDS.forEach((id, i) => (DEF[id] = { ev: 'men', label: `Trận ${i + 1}` }));
@@ -71,15 +76,17 @@ const srcLabel = ([k, v]) => {
 // Lịch thi đấu 2 sân: mỗi lượt [giờ, trận ở sân thứ nhất, trận ở sân thứ hai].
 const SLOTS = [
   ['08:15', 'R1', 'R2'], ['08:25', 'N01', 'N02'], ['08:40', 'R3', 'R4'], ['08:50', 'R5', 'R6'],
-  ['09:00', 'R7', 'R8'], ['09:10', 'N03', 'N04'], ['09:25', 'N05', 'R9'], ['09:40', 'R10', 'R11'],
-  ['09:50', 'N06', 'R12'], ['10:05', 'N07', 'N08'], ['10:20', 'N09', 'N10'], ['10:35', 'N11', 'N12'],
-  ['10:50', 'N13', 'N14'], ['11:05', 'N15', null],
-  ['11:20', 'Q1', 'Q2'], ['11:30', 'Q3', 'Q4'], ['11:40', 'S1', 'S2'],
-  ['11:50', 'F', 'MF'],
+  ['09:00', 'R7', 'R8'], ['09:10', 'N03', 'R9'], ['09:25', 'N04', 'N05'], ['09:40', 'R10', 'R11'],
+  ['09:50', 'R12', 'R13'], ['10:00', 'N06', 'N07'], ['10:15', 'N08', 'N09'], ['10:30', 'N10', 'N11'],
+  ['10:45', 'N12', 'N13'], ['11:00', 'N14', 'N15'],
+  ['11:15', 'Q1', 'Q2'], ['11:25', 'Q3', 'Q4'], ['11:35', 'S1', 'S2'],
+  ['11:45', 'F', 'MF'],
 ];
 const WARMUP = { time: '08:00', text: 'Khởi động · làm quen sân', note: '15 phút' };
 const PHASE_AT = { 0: 'p1', 14: 'p2', 17: 'p3' }; // lượt bắt đầu mỗi phần
 const COURTS = ['33', '3']; // cột trái, cột phải trong lịch
+// Giờ BTC sửa tay lưu ở meta/<TIMES_KEY>/<lượt>. Đổi khoá mỗi khi lịch đổi để giờ sửa cho lịch cũ không đè lên lịch mới.
+const TIMES_KEY = 'times2';
 const SLOT_OF = {};
 SLOTS.forEach(([, ...ids], i) => ids.forEach((id, c) => id && (SLOT_OF[id] = { i, c })));
 
@@ -87,8 +94,7 @@ function makeSeed() {
   const teams = {}, matches = {};
   MEN.forEach((n, i) => (teams[MEN_TEAMS[i]] = { name: n }));
   MIX.forEach((n, i) => (teams[MIX_TEAMS[i]] = { name: n }));
-  MEN_PAIRS.forEach(([a, b], i) => (matches[MEN_IDS[i]] = { a: 'm' + a, b: 'm' + b, sa: 0, sb: 0, st: 'pending' }));
-  MIX_PAIRS.forEach(([a, b], i) => (matches[R1_IDS[i]] = { a: 'x' + a, b: 'x' + b, sa: 0, sb: 0, st: 'pending' }));
+  [...MEN_IDS, ...R1_IDS].forEach(id => (matches[id] = { ...PAIR_OF[id], sa: 0, sb: 0, st: 'pending' }));
   ['MF', ...QF_IDS, ...SF_IDS, 'F'].forEach(id => (matches[id] = { sa: 0, sb: 0, st: 'pending' }));
   return { meta: { target: 11, mixTarget: 7, finalTarget: 11, winBy: 1, courts: COURTS }, teams, matches };
 }
@@ -105,18 +111,23 @@ function derive(S) {
   const M = S.matches || {}, T = S.teams || {}, tb = S.tb || {};
   const meta = { target: 11, mixTarget: 7, finalTarget: 11, winBy: 1, ...(S.meta || {}) };
   if (!Array.isArray(meta.courts)) meta.courts = COURTS;
-  const times = meta.times || {};
+  const times = meta[TIMES_KEY] || {};
   const st = id => (M[id] && M[id].st) || 'pending';
-  const name = id => (T[id] && T[id].name) || '—';
+  const name = id => (T[id] && T[id].name) || TEAM_NAME[id] || '—';
+  // Trận vòng tròn / vòng 1: chưa đánh thì theo lịch trong code (lịch có thể đổi), đã đánh thì giữ cặp đã ghi.
+  const fixed = id => {
+    const m = M[id] || {};
+    return st(id) === 'pending' && !m.sa && !m.sb ? PAIR_OF[id] : { a: m.a || PAIR_OF[id].a, b: m.b || PAIR_OF[id].b };
+  };
 
   // Bảng điểm vòng tròn / vòng bảng: số trận thắng → hiệu số → tổng điểm ghi được → BTC xếp tay.
   function standings(teamIds, matchIds) {
     const rows = teamIds.map(id => ({ id, p: 0, w: 0, f: 0, a: 0 }));
     const row = Object.fromEntries(rows.map(r => [r.id, r]));
     matchIds.forEach(id => {
-      const m = M[id];
-      if (st(id) !== 'done' || !row[m.a] || !row[m.b]) return;
-      const A = row[m.a], B = row[m.b];
+      const m = M[id], s = fixed(id);
+      if (st(id) !== 'done' || !row[s.a] || !row[s.b]) return;
+      const A = row[s.a], B = row[s.b];
       A.p++; B.p++;
       A.f += m.sa; A.a += m.sb; B.f += m.sb; B.a += m.sa;
       (m.sa > m.sb ? A : B).w++;
@@ -136,7 +147,7 @@ function derive(S) {
   function sides(id) {
     if (memo[id]) return memo[id];
     const m = M[id] || {}, d = DEF[id];
-    if (!d.src) return (memo[id] = { a: m.a, b: m.b });
+    if (!d.src) return (memo[id] = fixed(id));
     // Đã bắt đầu thì giữ nguyên cặp đã chốt (m.a/m.b), không đổi theo kết quả sửa sau.
     return (memo[id] = {
       a: m.a || resolve(d.src[0]), b: m.b || resolve(d.src[1]),
@@ -177,7 +188,7 @@ const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').repla
 let S = null, loaded = false, authReady = false, isAdmin = false;
 let conn = null; // null = đang kết nối lần đầu
 let lastView = null;
-const STATIC = new Set(['set', 'edit', 'login', 'wait', 'init']); // view có form: không vẽ lại khi dữ liệu đổi
+const STATIC = new Set(['set', 'log', 'edit', 'login', 'wait', 'init']); // view có form: không vẽ lại khi dữ liệu đổi
 const store = { mode: CFG ? 'server' : 'demo' };
 const app = document.getElementById('app');
 
@@ -259,6 +270,16 @@ async function initSupabase() {
     if (error) throw error;
     await refetch();
   };
+  store.history = async () => {
+    const { data, error } = await sb.rpc('cup_history', { pw, lim: 300 });
+    if (error) throw error;
+    return data;
+  };
+  store.restore = async id => {
+    const { error } = await sb.rpc('cup_restore', { log_id: id, pw });
+    if (error) throw error;
+    await refetch();
+  };
   store.login = async candidate => {
     if (!(await check(candidate))) return false;
     pw = candidate; isAdmin = true;
@@ -275,10 +296,15 @@ function initDemo() {
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* trình duyệt chặn lưu */ } };
   const emit = () => onData(JSON.parse(JSON.stringify(data)));
   let data = load() || makeSeed();
+  // Chế độ thử: log chỉ giữ trong phiên này, giống cup_log trên máy chủ.
+  const log = [];
+  const keep = ops => log.unshift({ id: log.length + 1, at: new Date().toISOString(), ver: log.length + 1, kind: 'update', ops, data: JSON.parse(JSON.stringify(data)) });
+  store.history = async () => log;
+  store.restore = async id => { const row = log.find(r => r.id === id); data = JSON.parse(JSON.stringify(row.data)); save(); keep({ __restore: id }); emit(); };
   // Đồng bộ giữa các tab trên cùng máy để thử "BTC nhập — người xem thấy".
   window.addEventListener('storage', e => { if (e.key === KEY) { data = load() || makeSeed(); emit(); } });
-  store.write = async up => { applyPatch(data, up); save(); emit(); };
-  store.seed = async () => { data = makeSeed(); save(); emit(); };
+  store.write = async up => { applyPatch(data, up); save(); keep(up); emit(); };
+  store.seed = async () => { data = makeSeed(); save(); keep('init'); emit(); };
   store.logout = async () => {};
   authReady = true; isAdmin = true; conn = true;
   emit();
@@ -298,7 +324,7 @@ function route() {
   const parts = decodeURIComponent(location.hash.slice(1)).split('/');
   if (parts[0] === 'admin') {
     if (parts[1] === 'm' && DEF[parts[2]]) return { admin: true, match: parts[2], view: parts[3] === 'edit' ? 'edit' : 'score' };
-    const tab = ['men', 'mix', 'set'].includes(parts[1]) ? parts[1] : 'lich';
+    const tab = ['men', 'mix', 'set', 'log'].includes(parts[1]) ? parts[1] : 'lich';
     return { admin: true, tab, view: tab };
   }
   const tab = ['men', 'mix'].includes(parts[0]) ? parts[0] : 'lich';
@@ -323,7 +349,7 @@ function render(force) {
   const D = derive(S || makeSeed());
   const views = {
     lich: () => viewSchedule(D, r.admin), men: () => viewMen(D, r.admin), mix: () => viewMix(D, r.admin),
-    set: () => viewSet(D), score: () => viewScore(D, r.match), edit: () => viewEdit(D, r.match),
+    set: () => viewSet(D), log: viewLog, score: () => viewScore(D, r.match), edit: () => viewEdit(D, r.match),
     login: viewLogin, init: viewInit,
     wait: () => '<div class="boot">Đang kiểm tra đăng nhập…</div>',
     loading: () => '<div class="boot">Đang tải dữ liệu giải…</div>',
@@ -339,6 +365,7 @@ function render(force) {
     `<main class="wrap">${!S && loaded && !r.admin ? '<p class="note">BTC chưa mở giải — tỉ số sẽ hiện ở đây khi trận đầu bắt đầu.</p>' : ''}${views[v]()}</main>` +
     (focus ? '' : footer(r));
   paintConn();
+  if (v === 'log') loadLog();
   if (typing) { const f = app.querySelector('[data-find]'); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }
 }
 
@@ -650,10 +677,64 @@ function viewSet(D) {
     <p class="link">${esc(url)}</p>
     <button class="btn ghost wide" data-act="share">${ICON.share} Chia sẻ link</button>
   </section>
+  <section class="card"><h3>Lịch sử thay đổi</h3>
+    <p class="fine top">Mỗi lần chấm điểm, sửa, đặt lại hay xoá đều được lưu một bản sao trên máy chủ. Lỡ xoá nhầm thì vào đây khôi phục.</p>
+    <a class="btn ghost wide" href="#admin/log">Xem lịch sử &amp; khôi phục</a>
+  </section>
   <section class="card danger-zone"><h3>Xoá kết quả</h3>
-    <p class="fine top">Đưa cả ${ALL_IDS.length} trận về 0–0, giữ nguyên tên các cặp, giờ và luật.</p>
+    <p class="fine top">Đưa cả ${ALL_IDS.length} trận về 0–0, giữ nguyên tên các cặp, giờ và luật. Bản trước khi xoá vẫn còn trong Lịch sử thay đổi.</p>
     <button class="btn danger wide" data-act="reset-all">Xoá toàn bộ kết quả</button>
   </section>`;
+}
+
+// ---------- BTC: lịch sử thay đổi ----------
+function viewLog() {
+  return `<div class="sc-top"><a href="#admin/set" class="back">‹ Cài đặt</a></div>
+    <h2 class="sc-title">Lịch sử thay đổi</h2>
+    <p class="fine top">Mới nhất ở trên. “Khôi phục” đưa cả giải về đúng trạng thái ngay sau lần ghi đó; bản hiện tại vẫn được lưu nên khôi phục cũng hoàn tác được.</p>
+    <div id="log" class="log"><p class="empty">Đang tải…</p></div>`;
+}
+
+// Tóm tắt một bản vá thành chữ cho BTC đọc.
+function describeOps(ops) {
+  if (ops === 'init') return 'Khởi tạo giải';
+  if (!ops || typeof ops !== 'object') return 'Thay đổi dữ liệu';
+  if (ops.__restore) return `Khôi phục về bản #${ops.__restore}`;
+  const ids = new Set(), other = new Set();
+  let what = '';
+  for (const [k, v] of Object.entries(ops)) {
+    const [root, id, field] = k.split('/');
+    if (root === 'matches' && DEF[id]) {
+      ids.add(id);
+      if (!field) what = 'đặt lại';
+      else if (field === 'sa' || field === 'sb') what = v && v.__inc !== undefined ? `${v.__inc > 0 ? '+' : '−'}1 điểm cặp ${field === 'sa' ? 'trên' : 'dưới'}` : what || 'nhập tỉ số';
+      else if (field === 'st' && !what) what = v === 'done' ? 'kết thúc trận' : v === 'live' ? 'bắt đầu / mở lại' : 'đặt lại';
+      else if (field === 'court' && !what) what = 'đổi sân';
+      else if ((field === 'srv' || field === 'sn') && !what) what = 'đổi giao bóng';
+    } else other.add({ tb: 'BTC xếp tay thứ hạng', meta: 'Cài đặt luật / sân / giờ', teams: 'Đổi tên cặp' }[root] || root);
+  }
+  const parts = [];
+  if (ids.size > 3) { parts.push(`Xoá toàn bộ kết quả (${ids.size} trận về 0–0)`); other.delete('BTC xếp tay thứ hạng'); }
+  else ids.forEach(id => parts.push(`${fullLabel(id)}${what ? ' · ' + what : ''}`));
+  return [...parts, ...other].join(' · ') || 'Thay đổi dữ liệu';
+}
+
+async function loadLog() {
+  const box = () => document.getElementById('log');
+  if (!store.history) return;
+  try {
+    const rows = await store.history();
+    if (!box()) return;
+    box().innerHTML = rows.length ? rows.map(r => {
+      const t = new Date(r.at);
+      const when = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())} · ${pad(t.getDate())}/${pad(t.getMonth() + 1)}`;
+      const label = r.kind === 'delete' ? 'Dữ liệu giải bị xoá (bản ngay trước khi xoá)' : describeOps(r.ops);
+      return `<div class="log-row"><div><b>#${r.id}</b> <span class="fine">${when}</span><div>${esc(label)}</div></div>
+        <button class="btn ghost" data-act="restore" data-id="${r.id}">Khôi phục</button></div>`;
+    }).join('') : '<p class="empty">Chưa có thay đổi nào được lưu.</p>';
+  } catch (e) {
+    if (box()) box().innerHTML = `<p class="empty">Không tải được lịch sử: ${esc(e.message || e)}<br>Nếu báo thiếu hàm cup_history: chạy lại file supabase.sql trong Supabase → SQL Editor.</p>`;
+  }
 }
 
 function viewLogin() {
@@ -733,6 +814,13 @@ async function act(name, el) {
       return write({ ['tb/' + row.id]: max + 1 });
     }
     case 'seed': await store.seed(); return toast('Đã khởi tạo giải');
+    case 'restore': {
+      const lid = +el.dataset.id;
+      if (!confirm(`Đưa cả giải về bản #${lid}? Bản hiện tại vẫn được lưu trong lịch sử.`)) return;
+      try { await store.restore(lid); } catch (e) { return toast('Không khôi phục được: ' + (e.message || e)); }
+      toast(`Đã khôi phục bản #${lid}`);
+      return loadLog();
+    }
     case 'logout': await store.logout(); location.hash = '#lich'; return;
     case 'jump': {
       const el2 = document.getElementById('slot-' + el.dataset.slot);
@@ -782,8 +870,8 @@ async function submit(form) {
     const D = derive(S || makeSeed());
     up['meta/courts'] = D.meta.courts.map((c, i) => (f.get('court' + i) || '').trim() || c);
     const hhmm = v => /^\d{2}:\d{2}$/.test(v || '');
-    if (hhmm(f.get('time_w'))) up['meta/times/w'] = f.get('time_w');
-    SLOTS.forEach((_, i) => { const v = f.get('time_' + i); if (hhmm(v)) up['meta/times/' + i] = v; });
+    if (hhmm(f.get('time_w'))) up[`meta/${TIMES_KEY}/w`] = f.get('time_w');
+    SLOTS.forEach((_, i) => { const v = f.get('time_' + i); if (hhmm(v)) up[`meta/${TIMES_KEY}/${i}`] = v; });
     TEAM_IDS.forEach(tid => { const v = (f.get('t_' + tid) || '').trim(); if (v) up[`teams/${tid}/name`] = v; });
     await write(up);
     render(true);
@@ -820,7 +908,7 @@ document.addEventListener('submit', e => {
 document.addEventListener('input', e => { if (e.target.matches('[data-find]')) setFind(e.target.value); });
 window.addEventListener('hashchange', () => {
   const r = route();
-  if (r.admin && !r.match && r.tab !== 'set') listHash = location.hash || '#admin';
+  if (r.admin && !r.match && r.tab !== 'set' && r.tab !== 'log') listHash = location.hash || '#admin';
   render(true);
   window.scrollTo(0, 0);
 });

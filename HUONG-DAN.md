@@ -50,16 +50,18 @@ Chưa điền Supabase vào `config.js` thì trang chạy **chế độ thử**:
 - **Vòng 8 đội, bán kết, chung kết** tự điền cặp đấu khi đủ kết quả vòng trước. Khi trận đã bắt đầu, cặp đấu được giữ cố định.
 - **Bằng điểm:** nếu hai cặp bằng mọi chỉ số, bảng xếp hạng hiện dấu `=`. BTC bấm nút **▲** (chỉ có ở trang BTC) để đưa cặp đó lên trên.
 - **Đổi tên cặp, luật điểm (11/15/21, cách 2 điểm), số sân:** nút **⚙ Cài đặt** trên thanh BTC.
+- **Lịch sử thay đổi (log):** mỗi lần ghi (chấm điểm, sửa, đặt lại, xoá toàn bộ, kể cả xoá hẳn dữ liệu giải) máy chủ đều lưu một bản sao đầy đủ vào bảng `cup_log`. Xem ở **⚙ Cài đặt → Xem lịch sử & khôi phục**; bấm **Khôi phục** để đưa cả giải về đúng bản đó (bản hiện tại vẫn được lưu nên hoàn tác được). Cần chạy lại `supabase.sql` một lần để bật tính năng này.
 
 ## Thể thức + lịch đang dùng
 
-- **Lịch:** 2 sân (Sân 33, Sân 3), khởi động 08:00, 18 lượt từ 08:15 đến 11:50. Tab **Lịch đấu** là trang mặc định; người chơi gõ tên vào ô tìm để thấy trận của mình.
+- **Lịch:** 2 sân (Sân 33, Sân 3), khởi động 08:00, 18 lượt từ 08:15 đến 11:45. Tab **Lịch đấu** là trang mặc định; người chơi gõ tên vào ô tìm để thấy trận của mình.
   Lịch trễ thì BTC sửa giờ các lượt trong **⚙ Cài đặt → Sân & giờ thi đấu**.
 - **Đôi nam (6 cặp, vòng tròn 15 trận, chạm 11):** xếp theo **số trận thắng** → hiệu số → tổng điểm ghi được → BTC quyết định. Hạng 1 gặp hạng 2 ở **Chung kết Đôi nam** (chạm 11).
-- **Đôi nam nữ (12 cặp):** Vòng 1 mỗi cặp đánh 2 trận (12 trận, chạm 11), xếp như trên (số trận thắng đứng đầu); 8 cặp đầu vào Vòng 8 đội:
+- **Đôi nam nữ (13 cặp):** Vòng 1 mỗi cặp đánh 2 trận (13 trận, chạm 11), xếp như trên (số trận thắng đứng đầu); 8 cặp đầu vào Vòng 8 đội:
   8.1 = H1 gặp H8 · 8.2 = H4 gặp H5 · 8.3 = H2 gặp H7 · 8.4 = H3 gặp H6. Bán kết 1 = thắng 8.1 gặp thắng 8.2, Bán kết 2 = thắng 8.3 gặp thắng 8.4 (chạm 11). **Chung kết** chạm 11.
 - **Kết thúc sớm Đôi nam nữ:** mọi trận Đôi nam nữ đánh chạm 11, nhưng khi một cặp đã chạm 7 và đang dẫn, màn chấm điểm hiện nút **Kết thúc — cặp này thắng**; bấm (và xác nhận) là cặp đang dẫn thắng với tỉ số lúc đó. Đang hoà thì phải đánh tiếp. Mốc 7 chỉnh được trong Cài đặt.
-- Hai trận chung kết đánh cùng lúc lúc 11:50.
+- Hai trận chung kết đánh cùng lúc lúc 11:45.
+- **Đổi lịch / thêm cặp:** sửa `MIX`/`MEN`, `MIX_PAIRS`/`MEN_PAIRS` và `SLOTS` trong `app.js`. Trận chưa đánh tự theo lịch mới; trận đã đánh giữ cặp đã ghi. Lịch đổi thì tăng `TIMES_KEY` để giờ BTC sửa tay cho lịch cũ không đè lên lịch mới.
 
 ## Thử trên máy
 
