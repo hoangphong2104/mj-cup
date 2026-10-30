@@ -61,6 +61,7 @@ begin
   if not public.cup_check(pw) then
     raise exception 'permission denied' using errcode = '42501';
   end if;
+  perform set_config('mj.ops', '"init"', true);
   insert into public.cup (id, data) values ('mj', doc)
   on conflict (id) do update set data = excluded.data, ver = public.cup.ver + 1, updated_at = now()
   returning ver into nv;
@@ -103,7 +104,72 @@ begin
       d := jsonb_set(d, p, v, true);
     end if;
   end loop;
+  perform set_config('mj.ops', ops::text, true);
   update public.cup set data = d, ver = ver + 1, updated_at = now() where id = 'mj'
+  returning ver into nv;
+  return nv;
+end $$;
+
+-- ---------- Nhật ký (log) ----------
+-- Mỗi lần dữ liệu giải đổi (chấm điểm, sửa, đặt lại, xoá toàn bộ, khởi tạo lại, kể cả xoá hẳn dòng 'mj')
+-- đều lưu một bản sao đầy đủ vào cup_log. Không ai đọc/sửa/xoá trực tiếp được bảng này;
+-- BTC xem và khôi phục qua cup_history / cup_restore (cần mật khẩu).
+create table if not exists public.cup_log (
+  id bigserial primary key,
+  at timestamptz not null default now(),
+  ver bigint,
+  kind text not null,       -- insert | update | delete
+  ops jsonb,                -- bản vá đã ghi ("init" khi khởi tạo, {"__restore": id} khi khôi phục)
+  data jsonb not null       -- toàn bộ dữ liệu NGAY SAU lần ghi (với delete: bản ngay trước khi xoá)
+);
+alter table public.cup_log enable row level security;
+revoke all on public.cup_log from anon, authenticated;
+
+create or replace function public.cup_log_trg()
+returns trigger language plpgsql security definer set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' then
+    insert into public.cup_log (ver, kind, ops, data) values (old.ver, 'delete', null, old.data);
+    return old;
+  end if;
+  insert into public.cup_log (ver, kind, ops, data)
+  values (new.ver, lower(tg_op), nullif(current_setting('mj.ops', true), '')::jsonb, new.data);
+  return new;
+end $$;
+
+drop trigger if exists cup_log_trg on public.cup;
+create trigger cup_log_trg after insert or update or delete on public.cup
+  for each row execute function public.cup_log_trg();
+
+-- Danh sách các lần ghi gần nhất (không kèm dữ liệu đầy đủ cho nhẹ).
+create or replace function public.cup_history(pw text, lim int default 200)
+returns table (id bigint, at timestamptz, ver bigint, kind text, ops jsonb)
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not public.cup_check(pw) then
+    raise exception 'permission denied' using errcode = '42501';
+  end if;
+  return query select l.id, l.at, l.ver, l.kind, l.ops from public.cup_log l order by l.id desc limit least(greatest(lim, 1), 2000);
+end $$;
+
+-- Đưa giải về đúng bản đã lưu ở dòng log_id. Bản hiện tại vẫn còn trong log nên khôi phục cũng hoàn tác được.
+create or replace function public.cup_restore(log_id bigint, pw text)
+returns bigint language plpgsql security definer set search_path = public
+as $$
+declare doc jsonb; nv bigint;
+begin
+  if not public.cup_check(pw) then
+    raise exception 'permission denied' using errcode = '42501';
+  end if;
+  select data into doc from public.cup_log where id = log_id;
+  if doc is null then
+    raise exception 'Không tìm thấy bản lưu %', log_id;
+  end if;
+  perform set_config('mj.ops', jsonb_build_object('__restore', log_id)::text, true);
+  insert into public.cup (id, data) values ('mj', doc)
+  on conflict (id) do update set data = excluded.data, ver = public.cup.ver + 1, updated_at = now()
   returning ver into nv;
   return nv;
 end $$;
@@ -112,3 +178,5 @@ end $$;
 grant execute on function public.cup_check(text) to anon, authenticated;
 grant execute on function public.cup_init(jsonb, text) to anon, authenticated;
 grant execute on function public.cup_patch(jsonb, text) to anon, authenticated;
+grant execute on function public.cup_history(text, int) to anon, authenticated;
+grant execute on function public.cup_restore(bigint, text) to anon, authenticated;
